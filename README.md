@@ -14,11 +14,13 @@ src/
   logic.js      The recommendation rule engine (pure functions)
   seed.js       Exercise library, injury tags, movement patterns, goals, InBody fields
   sample.js     Optional demo data (two clients with history)
+  md.js         Tiny GUIDE.md → HTML converter for the in-app Help view
 template.html   HTML shell + all CSS; the JS bundle is inlined into it at build time
-build.js        esbuild bundle → inline into template → docs/index.html
+build.js        esbuild bundle → inline into template → docs/index.html (+ guide.html stub)
 test.js         Playwright end-to-end test (persistence, recommendations, charts, backup)
 docs/index.html The built app (committed, so GitHub Pages serves it directly)
-GUIDE.md        End-user setup & usage guide for the trainer
+docs/guide.html Build-emitted redirect stub → the app's #help view
+GUIDE.md        End-user guide — embedded into the app at build time (Help tab)
 ```
 
 ## Development
@@ -41,7 +43,7 @@ There is no dev server — the build is fast enough to just rebuild and reload `
 2. Repo → Settings → Pages → "Deploy from a branch" → branch `main`, folder `/docs`.
 3. The app is live at `https://<username>.github.io/<repo>/`.
 
-On the iPad: open that URL in Safari → Share → **Add to Home Screen**. It launches full-screen like a native app, and iPadOS protects its storage. User-facing instructions are in `GUIDE.md`.
+On the iPad: open that URL in Safari → Share → **Add to Home Screen**. It launches full-screen like a native app, and iPadOS protects its storage. User-facing instructions are in `GUIDE.md`, which is also embedded in the app itself (Help tab) and reachable at the stable URL `https://<username>.github.io/<repo>/guide.html` (a stub that redirects into the app's Help view).
 
 Note: the deployed page is public, but it contains no data — client data never leaves the device it's entered on.
 

@@ -1,19 +1,14 @@
 # TrainerPad — setup & user guide
 
-TrainerPad is a client-management app for personal trainers. It is one single file (`TrainerPad.html`), it runs entirely on your iPad, and every piece of client data stays on your device — nothing is sent to any server.
+TrainerPad is a client-management app for personal trainers. It runs entirely on your iPad, and every piece of client data stays on your device — nothing is sent to any server. The app lives at [bradleypallen.github.io/trainerpad](https://bradleypallen.github.io/trainerpad/); that page is just the app itself, and everything you type is stored in the iPad's own browser database.
 
-## Getting it onto your iPad (one-time, ~5 minutes)
+## Getting it onto your iPad (one-time, ~1 minute)
 
-The best experience is to put the file on the web once, then install it like a native app:
+1. On the iPad, open **https://bradleypallen.github.io/trainerpad/** in **Safari**.
+2. Tap the **Share** button → **Add to Home Screen**.
+3. A "TrainerPad" icon appears on your home screen. Launch it from there — it opens full-screen like a real app, and iPadOS protects its stored data.
 
-1. Upload `TrainerPad.html` to any free static host. Easy options: **Netlify Drop** (drag the file onto drop.netlify.com), **GitHub Pages**, or **tiiny.host**. You'll get a private-ish URL like `https://your-name.netlify.app/TrainerPad.html`.
-2. On the iPad, open that URL in **Safari**.
-3. Tap the **Share** button → **Add to Home Screen**.
-4. A "TrainerPad" icon appears on your home screen. Launch it from there — it opens full-screen like a real app, and iPadOS protects its stored data.
-
-Even though the file is hosted, your data is **not** on the web — the page is just the app itself. Everything you type is stored in the iPad's own browser database.
-
-Why not just open the file from the Files app? iPadOS opens HTML files in a limited preview mode where saving data isn't reliable. The home-screen route above is the dependable one.
+Always launch from the Home Screen icon rather than a Safari tab — iPadOS treats home-screen web apps' storage as protected.
 
 ## First steps
 

@@ -22,12 +22,13 @@ reload `docs/index.html` in a browser. `test.js` is one sequential e2e script
 1. **Single-file build.** Everything (JS, CSS, icon) is inlined into
    `docs/index.html` by `build.js`. Never add CDN links, external scripts,
    fonts, or a second runtime file — it would break offline use and hand-off.
-2. **`docs/index.html` is a committed build artifact.** After ANY change to
-   `src/` or `template.html`: `npm run build`, then commit source + artifact
-   together. GitHub Pages serves `/docs` from `main` — push = deploy.
-   CI (`.github/workflows/ci.yml`) fails the build if the committed
-   artifact doesn't match a fresh rebuild, and runs the e2e. It does
-   not deploy — Pages serves the committed file directly.
+2. **`docs/` holds committed build artifacts.** After ANY change to `src/`,
+   `template.html`, or `GUIDE.md` (bundled into the app as the Help view):
+   `npm run build`, then commit source + artifacts (`docs/index.html`,
+   `docs/guide.html`) together. GitHub Pages serves `/docs` from `main` —
+   push = deploy. CI (`.github/workflows/ci.yml`) fails if committed docs/
+   doesn't match a fresh rebuild, and runs the e2e. It does not deploy —
+   Pages serves the committed files directly.
 3. **Real users have data in IndexedDB v1.** If you change store names,
    keyPaths, or record shapes: bump DB_VERSION in `src/db.js`, write a
    migration in `onupgradeneeded`, and keep `exportAll`/`importAll`
@@ -53,6 +54,12 @@ reload `docs/index.html` in a browser. `test.js` is one sequential e2e script
   assessments, exercises, settings) + JSON backup export/import.
 - `src/sample.js` — demo data loaded on demand from Settings; `test.js`
   depends on its two clients (Maria Santos, James Okafor) and their history.
+- `src/md.js` — no-deps markdown-subset renderer for the Help view. NO regex
+  lookbehind here or anywhere (Safari 15 can't parse it — bricks the bundle).
+- `GUIDE.md` — single source of truth for help content: embedded into the
+  app at build time, shown in the Help tab, deep-linked via `#help`
+  (`docs/guide.html` redirects there). `test.js` anchors on its
+  "Backups" h2 heading — keep that heading if rewording.
 
 ## Verify before calling work done
 

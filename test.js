@@ -30,6 +30,12 @@ fs.mkdirSync(shots, { recursive: true });
   await page.waitForSelector('.topbar', { timeout: 5000 });
   console.log('1. App loaded. Title:', await page.title());
 
+  // Help view renders the guide embedded from GUIDE.md
+  await page.click('.topnav >> text=Help');
+  await page.waitForSelector('.help h2:has-text("Backups")', { timeout: 5000 });
+  await page.screenshot({ path: shots + '/0-help.png', fullPage: true });
+  console.log('1b. Help view renders guide content.');
+
   // Load sample data from Settings
   await page.click('text=Settings');
   await page.click('text=Load sample data');
@@ -127,6 +133,17 @@ fs.mkdirSync(shots, { recursive: true });
   await page.waitForSelector('svg .series-line');
   await page.screenshot({ path: shots + '/7-dark-progress.png', fullPage: true });
   console.log('14. Dark mode renders.');
+
+  // Deep link: docs/guide.html redirects here — #help must boot straight into
+  // the Help view. Fresh page so the main page's state stays untouched.
+  const page2 = await ctx.newPage();
+  await page2.goto(FILE + '#help');
+  await page2.waitForSelector('.help h2:has-text("Backups")', { timeout: 5000 });
+  console.log('15. #help deep link boots into Help view.');
+  const guideStub = fs.readFileSync(path.resolve(__dirname, 'docs/guide.html'), 'utf8');
+  if (!guideStub.includes('url=./#help')) throw new Error('docs/guide.html redirect stub missing #help target');
+  console.log('16. guide.html redirect stub present.');
+  await page2.close();
 
   console.log('\nConsole errors:', errors.length ? errors : 'none');
   await browser.close();

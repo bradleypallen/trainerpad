@@ -5,6 +5,10 @@ import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GO
 import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor } from './logic.js';
 import LineChart from './chart.jsx';
 import { loadSampleData } from './sample.js';
+import { mdToHtml } from './md.js';
+import GUIDE_MD from '../GUIDE.md';
+
+const GUIDE_HTML = mdToHtml(GUIDE_MD); // computed once at module load
 
 // ---------- tiny UI helpers ----------
 const patternLabel = (id) => (PATTERNS.find((p) => p.id === id) || {}).label || id;
@@ -805,10 +809,23 @@ function SettingsView({ units, setUnits, refresh, counts }) {
   );
 }
 
+// ---------- Help ----------
+function HelpView() {
+  return (
+    <div>
+      <h2>Help</h2>
+      <div className="card">
+        <div className="help" dangerouslySetInnerHTML={{ __html: GUIDE_HTML }} />
+      </div>
+    </div>
+  );
+}
+
 // ---------- App ----------
 function App() {
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState('clients');
+  // docs/guide.html redirects to #help — boot straight into the Help view then.
+  const [view, setView] = useState(() => (location.hash === '#help' ? 'help' : 'clients'));
   const [clients, setClients] = useState([]);
   const [exercises, setExercises] = useState([]);
   const [units, setUnitsState] = useState('lb');
@@ -840,7 +857,7 @@ function App() {
 
   if (!ready) return <div className="loading">Loading…</div>;
 
-  const nav = [['clients', 'Clients'], ['library', 'Exercises'], ['settings', 'Settings']];
+  const nav = [['clients', 'Clients'], ['library', 'Exercises'], ['help', 'Help'], ['settings', 'Settings']];
   return (
     <div className="app">
       <header className="topbar">
@@ -854,6 +871,7 @@ function App() {
       <main className="content">
         {view === 'clients' && <ClientsView clients={clients} exercises={exercises} units={units} refresh={refresh} />}
         {view === 'library' && <LibraryView exercises={exercises} refresh={refresh} />}
+        {view === 'help' && <HelpView />}
         {view === 'settings' && <SettingsView units={units} setUnits={setUnits} refresh={refresh} counts={counts} />}
       </main>
     </div>

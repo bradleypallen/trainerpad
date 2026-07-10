@@ -28,10 +28,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Check committed docs/index.html is fresh
+      - name: Check committed docs/ is fresh
         run: |
-          if ! git diff --exit-code docs/index.html; then
-            echo "::error file=docs/index.html::docs/index.html is stale — run 'npm run build' locally and commit the updated artifact together with the source change."
+          if ! git diff --exit-code docs/ || [ -n "$(git status --porcelain docs/)" ]; then
+            echo "::error::docs/ is stale — run 'npm run build' locally and commit the updated artifacts together with the source change."
             exit 1
           fi
 
