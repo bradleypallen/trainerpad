@@ -1,0 +1,52 @@
+# CI check — does NOT deploy. GitHub Pages serves docs/ from main directly,
+# so deployment is just "commit docs/index.html and push". This workflow
+# guards that model: it fails if the committed artifact is stale (someone
+# changed src/ or template.html without running `npm run build`), and runs
+# the Playwright e2e against the freshly built app.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Check committed docs/index.html is fresh
+        run: |
+          if ! git diff --exit-code docs/index.html; then
+            echo "::error file=docs/index.html::docs/index.html is stale — run 'npm run build' locally and commit the updated artifact together with the source change."
+            exit 1
+          fi
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e test
+        run: node test.js
+
+      # test.js writes step-by-step screenshots to shots/ — keep them for
+      # post-run analysis, especially on failure.
+      - name: Upload test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: shots/
+          if-no-files-found: ignore
