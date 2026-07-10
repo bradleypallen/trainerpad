@@ -53,6 +53,16 @@ Note: the deployed page is public, but it contains no data — client data never
 - **No `alert`/`confirm`** — destructive actions use a tap-twice-to-confirm button (`ConfirmBtn`).
 - **Safari target:** the build targets `safari15`; test on iPad after significant changes.
 
+## License & copyright
+
+© 2026 Bradley Allen. All rights reserved. Application specification and
+training methodology by **Latricia Haymon**.
+
+This repository is public for evaluation and collaboration, but it is **not
+yet open source**: no license is granted to use, copy, modify, or distribute
+the software. Licensing is under consideration — see [LICENSE](LICENSE).
+Outside contributions are not being accepted while licensing is unresolved.
+
 ## Roadmap ideas
 
 - Service worker for guaranteed offline cold-launch (needs a second file; Pages serves it fine)
