@@ -169,10 +169,12 @@ export const GOALS = [
 
 // NASM OPT model phases — an optional per-client "micro goal" that refines
 // the rep range within the primary goal. When set, it wins over GOALS.reps.
+// Parameters follow the NASM OPT resistance-training table: reps, working
+// sets, tempo, and rest between sets.
 export const PHASES = [
-  { id: 'stabilization', label: 'Stabilization Endurance', reps: [12, 20], note: 'OPT 1 — slow tempo, control, build a base' },
-  { id: 'strength_endurance', label: 'Strength Endurance', reps: [8, 12], note: 'OPT 2 — supersets, moderate loads' },
-  { id: 'hypertrophy', label: 'Hypertrophy', reps: [6, 12], note: 'OPT 3 — volume for muscle growth' },
-  { id: 'max_strength', label: 'Maximum Strength', reps: [2, 5], note: 'OPT 4 — heavy loads, full rest' },
-  { id: 'power', label: 'Power', reps: [3, 6], note: 'OPT 5 — light, fast, explosive reps' },
+  { id: 'stabilization', label: 'Stabilization Endurance', reps: [12, 20], sets: '1–3', tempo: '4-2-1 slow', rest: '0–90s', note: 'OPT 1 — slow tempo, control, build a base (50–70%)' },
+  { id: 'strength_endurance', label: 'Strength Endurance', reps: [8, 12], sets: '2–4', tempo: '2-0-2', rest: '0–60s', note: 'OPT 2 — superset strength + stabilization (70–80%)' },
+  { id: 'hypertrophy', label: 'Hypertrophy', reps: [6, 12], sets: '3–5', tempo: '2-0-2', rest: '0–60s', note: 'OPT 3 — volume for muscle growth (75–85%)' },
+  { id: 'max_strength', label: 'Maximum Strength', reps: [1, 5], sets: '4–6', tempo: 'x-x-x', rest: '3–5 min', note: 'OPT 4 — heavy loads, full rest (85–100%)' },
+  { id: 'power', label: 'Power', reps: [8, 10], sets: '3–5', tempo: 'x-x-x explosive', rest: '1–2 min between pairs', note: 'OPT 5 — superset: heavy strength (1–5 @ 85–100%) + light explosive (8–10 @ 30–45% / 10% BW)' },
 ];

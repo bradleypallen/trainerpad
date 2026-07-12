@@ -115,7 +115,7 @@ function recommendCore(exercise, client, sessions, allExercises, units) {
   const hist = historyFor(sessions, exercise.id).filter((h) => h.readiness !== 'low');
   const [lo, hi] = repRangeFor(client);
   const phase = client && client.phase ? PHASES.find((p) => p.id === client.phase) : null;
-  const phaseWhy = phase ? ` Rep range ${lo}–${hi} from the ${phase.label} phase.` : '';
+  const phaseWhy = phase ? ` ${phase.label} phase: ${lo}–${hi} reps, ${phase.sets} sets, ${phase.tempo} tempo, rest ${phase.rest}.` : '';
   const base = { conflicts, exercise };
 
   if (conflicts.length) {
@@ -137,13 +137,15 @@ function recommendCore(exercise, client, sessions, allExercises, units) {
       : { ...base, kind: 'stretch', sets: 2, seconds: 30, why: `Static stretch — 2×30s easy holds after training${t ? ' ' + t.toLowerCase() : ''}.` };
   }
 
-  // No history → conservative starting prescription.
+  // No history → conservative starting prescription. Never start a new
+  // exercise below 3 reps, even in a 1-rep-capable phase like Max Strength.
+  const startReps = Math.max(lo, 3);
   if (!hist.length) {
     if (exercise.load === 'time')
       return { ...base, kind: 'start', sets: 3, seconds: 30, why: 'First time — start with 3 holds/rounds of ~30s and adjust to form.' };
     if (exercise.load === 'bodyweight')
-      return { ...base, kind: 'start', sets: 3, reps: lo, why: `First time — 3×${lo}, add reps as form allows.${phaseWhy}` };
-    return { ...base, kind: 'start', sets: 3, reps: lo, weight: null, why: `First time — find a weight for 3×${lo} at RPE ≤ 7 (2–3 reps left in the tank).${phaseWhy}` };
+      return { ...base, kind: 'start', sets: 3, reps: startReps, why: `First time — 3×${startReps}, add reps as form allows.${phaseWhy}` };
+    return { ...base, kind: 'start', sets: 3, reps: startReps, weight: null, why: `First time — find a weight for 3×${startReps} at RPE ≤ 7 (2–3 reps left in the tank).${phaseWhy}` };
   }
 
   const last = hist[0];
