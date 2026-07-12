@@ -16,15 +16,15 @@ Open **Settings → Load sample data** to explore with two demo clients (you can
 
 ## What it does
 
-**Clients** — profile, goal, contact info, photo, and injury flags. Injuries you tag (knee, shoulder, lower back, …) follow the client everywhere: any exercise that stresses that area gets a ⚠️ and a suggested safer swap.
+**Clients** — profile, goal, contact info, photo, and injury flags. Injuries you tag (knee, shoulder, lower back, …) follow the client everywhere: any exercise that stresses that area gets a ⚠️ and a suggested safer swap. You can also set an optional **OPT training phase** (Stabilization Endurance through Power); when set, recommendations use the phase's rep range instead of the goal's — and say so in their reasoning.
 
-**Plan tab** — for each exercise in a client's recent history, the app suggests next session's sets, reps and weight, with a plain-English reason. The rules are standard coaching heuristics applied to that client's own logs: double progression (fill the goal rep range, then add ~2.5% upper / ~5% lower body), an automatic ~10% deload when average RPE hits 9.5+, and rep-ceiling triggers that advance bodyweight moves up their progression chain (e.g. incline push-up → push-up → DB bench). Suggestions are a starting point for your judgment, not a replacement for it.
+**Plan tab** — for each exercise in a client's recent history, the app suggests next session's sets, reps and weight, with a plain-English reason. The rules are standard coaching heuristics applied to that client's own logs: double progression (fill the goal rep range, then add ~2.5% upper / ~5% lower body), an automatic ~10% deload when average RPE hits 9.5+, and rep-ceiling triggers that advance bodyweight moves up their progression chain (e.g. incline push-up → push-up → DB bench). Suggestions are a starting point for your judgment, not a replacement for it. The Plan tab also suggests a **warm-up and cooldown** — dynamic stretches before and static stretches after, matched to the movement patterns being trained and filtered by the client's injury flags.
 
-**Sessions** — log workouts fast: suggested numbers are pre-filled, "last time" is shown for every exercise, and RPE per set is optional but makes recommendations smarter.
+**Sessions** — log workouts fast: suggested numbers are pre-filled, "last time" is shown for every exercise, and RPE per set is optional but makes recommendations smarter. If a client slept badly or is running on empty, tap **Low energy**: that day's suggestions drop about 10% of the load and one set, and the app remembers the light day so it never reads as regression later.
 
 **Progress** — charts for weight, muscle mass, and body-fat % from InBody entries, plus an estimated-1RM strength trend per exercise.
 
-**Assessments** — enter InBody results (weight, SMM, body fat %, BMI, visceral fat, BMR) from the printout, attach a photo of the sheet, and log fitness tests (push-ups, plank, resting HR, …).
+**Assessments** — enter InBody results (weight, SMM, body fat %, BMI, visceral fat, BMR) from the printout, attach a photo of the sheet, and log fitness tests (push-ups, plank, resting HR, …). Skip the typing: photograph the printout, copy the text with iPadOS **Live Text**, paste it into the form's paste box, and tap **Fill fields** to extract the values.
 
 **Exercises** — the built-in library is organized into progression/regression chains by movement pattern. Add your own exercises, with their own injury cautions, and they join the chains.
 

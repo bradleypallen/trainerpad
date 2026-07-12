@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as DB from './db.js';
-import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS } from './seed.js';
-import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor } from './logic.js';
+import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS, PHASES } from './seed.js';
+import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor, stretchSuggestions, parseInBodyText } from './logic.js';
 import LineChart from './chart.jsx';
 import { loadSampleData } from './sample.js';
 import { mdToHtml } from './md.js';
@@ -13,6 +13,7 @@ const GUIDE_HTML = mdToHtml(GUIDE_MD); // computed once at module load
 // ---------- tiny UI helpers ----------
 const patternLabel = (id) => (PATTERNS.find((p) => p.id === id) || {}).label || id;
 const goalLabel = (id) => (GOALS.find((g) => g.id === id) || {}).label || id;
+const phaseLabel = (id) => (PHASES.find((p) => p.id === id) || {}).label || id;
 const injuryLabel = (id) => (INJURY_TAGS.find((t) => t.id === id) || {}).label || id;
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmtDateLong = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -124,7 +125,7 @@ function InjuryChips({ ids }) {
 // ---------- Client form ----------
 function ClientForm({ initial, onSave, onClose }) {
   const [c, setC] = useState(initial || {
-    id: DB.uid(), name: '', goal: 'general', sex: '', dob: '', email: '', phone: '',
+    id: DB.uid(), name: '', goal: 'general', phase: '', sex: '', dob: '', email: '', phone: '',
     injuries: [], injuryNotes: '', notes: '', photo: null, createdAt: todayISO(),
   });
   const set = (k, v) => setC((p) => ({ ...p, [k]: v }));
@@ -151,6 +152,12 @@ function ClientForm({ initial, onSave, onClose }) {
           {GOALS.map((g) => <option key={g.id} value={g.id}>{g.label} ({g.reps[0]}–{g.reps[1]} reps)</option>)}
         </select>
       </Field>
+      <Field label="OPT training phase" hint="(optional) Refines the rep range within the goal.">
+        <select value={c.phase || ''} onChange={(e) => set('phase', e.target.value)}>
+          <option value="">— none —</option>
+          {PHASES.map((p) => <option key={p.id} value={p.id}>{p.label} ({p.reps[0]}–{p.reps[1]} reps)</option>)}
+        </select>
+      </Field>
       <Field label="Injuries & limitations" hint="Flagged exercises will show a caution and a safer swap.">
         <div className="chip-row wrap">
           {INJURY_TAGS.map((t) => (
@@ -171,7 +178,7 @@ function ClientForm({ initial, onSave, onClose }) {
 }
 
 // ---------- Exercise picker (grouped by pattern, shows recommendation inline) ----------
-function ExercisePicker({ exercises, client, sessions, units, onPick, onClose }) {
+function ExercisePicker({ exercises, client, sessions, units, readiness, onPick, onClose }) {
   const [q, setQ] = useState('');
   const [pat, setPat] = useState('');
   const shown = exercises.filter((e) =>
@@ -194,7 +201,7 @@ function ExercisePicker({ exercises, client, sessions, units, onPick, onClose })
           <h3>{p.label}</h3>
           {items.map((e) => {
             const conf = injuryConflicts(e, client);
-            const rec = client ? recommend(e, client, sessions, exercises, units) : null;
+            const rec = client ? recommend(e, client, sessions, exercises, units, readiness || 'normal') : null;
             return (
               <button key={e.id} className={'picker-row' + (conf.length ? ' caution' : '')} onClick={() => onPick(e, rec)}>
                 <span className="picker-name">{e.name}{conf.length ? ' ⚠️' : ''}</span>
@@ -210,26 +217,29 @@ function ExercisePicker({ exercises, client, sessions, units, onPick, onClose })
 
 // ---------- Session editor ----------
 function SessionEditor({ session, client, exercises, sessions, units, onSave, onClose, onDelete }) {
-  const [s, setS] = useState(session || { id: DB.uid(), clientId: client.id, date: todayISO(), notes: '', entries: [] });
+  const [s, setS] = useState(session || { id: DB.uid(), clientId: client.id, date: todayISO(), readiness: 'normal', notes: '', entries: [] });
   const [picking, setPicking] = useState(false);
   const exById = useMemo(() => Object.fromEntries(exercises.map((e) => [e.id, e])), [exercises]);
   const set = (k, v) => setS((p) => ({ ...p, [k]: v }));
   const priorSessions = useMemo(() => sessions.filter((x) => x.id !== s.id), [sessions, s.id]);
 
   const addExercise = (e, rec) => {
-    const isTime = e.load === 'time';
+    const isTime = e.load === 'time' || (e.load === 'stretch' && e.stretchType === 'static');
+    const repsOnly = e.load === 'stretch' && e.stretchType === 'dynamic';
     const lastSets = (historyFor(priorSessions, e.id)[0] || {}).sets;
     let n = (rec && rec.sets) || (lastSets && lastSets.length) || 3;
     let sets;
     if (rec && rec.kind !== 'caution' && (rec.weight || rec.reps || rec.seconds)) {
       const proto = isTime
         ? { seconds: rec.seconds || 30, rpe: '' }
-        : { weight: rec.weight || '', reps: rec.reps || repRangeFor(client)[0], rpe: '' };
+        : repsOnly
+          ? { reps: rec.reps || 10 }
+          : { weight: rec.weight || '', reps: rec.reps || repRangeFor(client)[0], rpe: '' };
       sets = Array.from({ length: n }, () => ({ ...proto }));
     } else if (lastSets) {
       sets = lastSets.map((st) => ({ ...st, rpe: '' }));
     } else {
-      const proto = isTime ? { seconds: 30, rpe: '' } : { weight: '', reps: repRangeFor(client)[0], rpe: '' };
+      const proto = isTime ? { seconds: 30, rpe: '' } : repsOnly ? { reps: 10 } : { weight: '', reps: repRangeFor(client)[0], rpe: '' };
       sets = Array.from({ length: 3 }, () => ({ ...proto }));
     }
     set('entries', [...s.entries, { exerciseId: e.id, sets, notes: '' }]);
@@ -253,11 +263,20 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
     <Modal title={session ? 'Edit session' : 'New session — ' + client.name} onClose={onClose} wide>
       <div className="grid2">
         <Field label="Date"><input type="date" value={s.date} onChange={(e) => set('date', e.target.value)} /></Field>
+        <Field label="Client readiness" hint="Low = slept badly / low energy; today's suggestions ease off.">
+          <div className="chip-row">
+            {[['normal', 'Normal'], ['low', 'Low energy']].map(([id, lbl]) => (
+              <button key={id} className={'chip chip-toggle' + ((s.readiness || 'normal') === id ? ' on' : '')} onClick={() => set('readiness', id)}>{lbl}</button>
+            ))}
+          </div>
+        </Field>
       </div>
       {s.entries.map((en, ei) => {
         const ex = exById[en.exerciseId] || { name: '(deleted exercise)', load: 'external' };
-        const isTime = ex.load === 'time';
-        const rec = recommend(ex, client, priorSessions, exercises, units);
+        const isTime = ex.load === 'time' || (ex.load === 'stretch' && ex.stretchType === 'static');
+        const repsOnly = ex.load === 'stretch' && ex.stretchType === 'dynamic';
+        const showRpe = ex.load !== 'stretch';
+        const rec = recommend(ex, client, priorSessions, exercises, units, s.readiness || 'normal');
         const hist = historyFor(priorSessions, en.exerciseId);
         return (
           <div key={ei} className="entry-card">
@@ -269,23 +288,27 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
             {hist[0] && <div className="hist-line">Last time ({fmtDateLong(hist[0].date)}): {fmtSets(hist[0].sets)}</div>}
             <div className="set-table">
               <div className="set-row set-head">
-                <span>Set</span>{isTime ? <span>Seconds</span> : <><span>Weight ({units})</span><span>Reps</span></>}<span>RPE</span><span />
+                <span>Set</span>{isTime ? <span>Seconds</span> : repsOnly ? <span>Reps</span> : <><span>Weight ({units})</span><span>Reps</span></>}{showRpe && <span>RPE</span>}<span />
               </div>
               {en.sets.map((st, si) => (
                 <div key={si} className="set-row">
                   <span className="set-num">{si + 1}</span>
                   {isTime ? (
                     <input type="number" inputMode="decimal" value={st.seconds ?? ''} onChange={(e) => updSet(ei, si, 'seconds', e.target.value === '' ? '' : Number(e.target.value))} />
+                  ) : repsOnly ? (
+                    <input type="number" inputMode="numeric" value={st.reps ?? ''} onChange={(e) => updSet(ei, si, 'reps', e.target.value === '' ? '' : Number(e.target.value))} />
                   ) : (
                     <>
                       <input type="number" inputMode="decimal" value={st.weight ?? ''} onChange={(e) => updSet(ei, si, 'weight', e.target.value === '' ? '' : Number(e.target.value))} />
                       <input type="number" inputMode="numeric" value={st.reps ?? ''} onChange={(e) => updSet(ei, si, 'reps', e.target.value === '' ? '' : Number(e.target.value))} />
                     </>
                   )}
-                  <select value={st.rpe ?? ''} onChange={(e) => updSet(ei, si, 'rpe', e.target.value === '' ? '' : Number(e.target.value))}>
-                    <option value="">–</option>
-                    {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  {showRpe && (
+                    <select value={st.rpe ?? ''} onChange={(e) => updSet(ei, si, 'rpe', e.target.value === '' ? '' : Number(e.target.value))}>
+                      <option value="">–</option>
+                      {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  )}
                   <button className="btn-ghost" onClick={() => rmSet(ei, si)} aria-label="Remove set">✕</button>
                 </div>
               ))}
@@ -294,6 +317,15 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
           </div>
         );
       })}
+      {(() => {
+        const pats = [...new Set(s.entries.map((en) => (exById[en.exerciseId] || {}).pattern).filter(Boolean))];
+        const sg = stretchSuggestions(pats, exercises, client);
+        return (sg.dynamic.length || sg.static.length) ? (
+          <div className="rec-line">
+            Warm-up: {sg.dynamic.map((e) => e.name).join(', ') || '—'} · Cooldown: {sg.static.map((e) => e.name).join(', ') || '—'}
+          </div>
+        ) : null;
+      })()}
       <button className="btn-secondary" onClick={() => setPicking(true)}>+ Add exercise</button>
       <Field label="Session notes"><textarea rows={2} value={s.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Energy, form notes, anything to remember…" /></Field>
       <div className="modal-actions">
@@ -301,7 +333,7 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
         <button className="btn-primary" disabled={!s.entries.length} onClick={() => onSave(s)}>Save session</button>
       </div>
       {picking && (
-        <ExercisePicker exercises={exercises} client={client} sessions={priorSessions} units={units} onPick={addExercise} onClose={() => setPicking(false)} />
+        <ExercisePicker exercises={exercises} client={client} sessions={priorSessions} units={units} readiness={s.readiness} onPick={addExercise} onClose={() => setPicking(false)} />
       )}
     </Modal>
   );
@@ -310,10 +342,25 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
 // ---------- Assessment forms ----------
 function InBodyForm({ initial, client, units, onSave, onClose, onDelete }) {
   const [a, setA] = useState(initial || { id: DB.uid(), clientId: client.id, date: todayISO(), type: 'inbody', data: {}, notes: '', photo: null });
+  const [pasted, setPasted] = useState('');
+  const [fillMsg, setFillMsg] = useState('');
   const setD = (k, v) => setA((p) => ({ ...p, data: { ...p.data, [k]: v } }));
+  const fillFromPaste = () => {
+    const vals = parseInBodyText(pasted);
+    const n = Object.keys(vals).length;
+    if (n) setA((p) => ({ ...p, data: { ...p.data, ...vals } }));
+    setFillMsg(n ? `Filled ${n} field${n === 1 ? '' : 's'}.` : 'No InBody values recognized — check the pasted text.');
+  };
   return (
     <Modal title="InBody result" onClose={onClose}>
       <Field label="Date"><input type="date" value={a.date} onChange={(e) => setA({ ...a, date: e.target.value })} /></Field>
+      <Field label="Paste from result sheet" hint="Photograph the printout, copy the text with Live Text, paste here.">
+        <textarea rows={3} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="Paste InBody text…" />
+      </Field>
+      <div className="btn-row">
+        <button className="btn-secondary" disabled={!pasted.trim()} onClick={fillFromPaste}>Fill fields from pasted text</button>
+      </div>
+      {fillMsg && <p className={fillMsg.startsWith('Filled') ? 'ok-note' : 'muted small'}>{fillMsg}</p>}
       <div className="grid2">
         {INBODY_FIELDS.map((f) => (
           <Field key={f.id} label={f.label + (f.unitL ? ` (${units === 'kg' ? f.unitK : f.unitL})` : '')}>
@@ -368,10 +415,21 @@ function PlanTab({ client, sessions, exercises, units, onStartSession }) {
   return (
     <div>
       <div className="row-between">
-        <p className="muted">Next-session suggestions from {client.name.split(' ')[0]}’s history, goal ({goalLabel(client.goal)}) and injury flags.</p>
+        <p className="muted">Next-session suggestions from {client.name.split(' ')[0]}’s history, goal ({goalLabel(client.goal)}{client.phase ? ', ' + phaseLabel(client.phase) + ' phase' : ''}) and injury flags.</p>
         <button className="btn-primary" onClick={onStartSession}>Start session</button>
       </div>
       {!items.length && <div className="empty-note">No sessions logged yet. Start a session and the plan will build itself from what you log.</div>}
+      {items.length > 0 && (() => {
+        const sg = stretchSuggestions([...new Set(items.map((e) => e.pattern))], exercises, client);
+        return (sg.dynamic.length || sg.static.length) ? (
+          <div className="rec-card">
+            <div className="rec-top"><strong>Warm-up / Cooldown</strong></div>
+            {sg.dynamic.length > 0 && <div className="rec-why">Warm-up (dynamic): {sg.dynamic.map((e) => e.name).join(' · ')}</div>}
+            {sg.static.length > 0 && <div className="rec-why">Cooldown (static): {sg.static.map((e) => e.name).join(' · ')}</div>}
+            <div className="rec-links muted small">{sg.why}</div>
+          </div>
+        ) : null;
+      })()}
       {items.map((ex) => {
         const rec = recommend(ex, client, sessions, exercises, units);
         const prog = progressionOf(ex, exercises, client);
@@ -459,7 +517,7 @@ function ProgressTab({ client, sessions, assessments, exercises, units }) {
   const trained = useMemo(() => {
     const counts = {};
     for (const s of sessions) for (const en of s.entries || []) counts[en.exerciseId] = (counts[en.exerciseId] || 0) + 1;
-    return exercises.filter((e) => counts[e.id] >= 2 && e.load !== 'time').sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+    return exercises.filter((e) => counts[e.id] >= 2 && e.load !== 'time' && e.load !== 'stretch').sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
   }, [sessions, exercises]);
   const [exId, setExId] = useState('');
   const chosen = exId || (trained[0] && trained[0].id) || '';
@@ -566,6 +624,7 @@ function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient
           <h2>{client.name}</h2>
           <div className="muted">
             {goalLabel(client.goal)}
+            {client.phase && ` · ${phaseLabel(client.phase)} phase`}
             {age(client.dob) != null && ` · ${age(client.dob)} yrs`}
             {client.phone && ` · ${client.phone}`}
           </div>
@@ -663,22 +722,25 @@ function ExerciseForm({ onSave, onClose }) {
   return (
     <Modal title="New exercise" onClose={onClose}>
       <Field label="Name"><input value={e.name} onChange={(ev) => set('name', ev.target.value)} autoFocus /></Field>
-      <div className="grid2">
-        <Field label="Movement pattern">
-          <select value={e.pattern} onChange={(ev) => set('pattern', ev.target.value)}>
-            {PATTERNS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Difficulty (1 easy – 6 hard)">
-          <input type="number" min={1} max={6} value={e.level} onChange={(ev) => set('level', Number(ev.target.value))} />
-        </Field>
-      </div>
+      {e.load !== 'stretch' && (
+        <div className="grid2">
+          <Field label="Movement pattern">
+            <select value={e.pattern} onChange={(ev) => set('pattern', ev.target.value)}>
+              {PATTERNS.filter((p) => p.id !== 'stretch').map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Difficulty (1 easy – 6 hard)">
+            <input type="number" min={1} max={6} value={e.level} onChange={(ev) => set('level', Number(ev.target.value))} />
+          </Field>
+        </div>
+      )}
       <div className="grid2">
         <Field label="Loading">
           <select value={e.load} onChange={(ev) => set('load', ev.target.value)}>
             <option value="external">Weighted</option>
             <option value="bodyweight">Bodyweight</option>
             <option value="time">Timed (seconds)</option>
+            <option value="stretch">Stretch</option>
           </select>
         </Field>
         <Field label="Body region">
@@ -687,6 +749,26 @@ function ExerciseForm({ onSave, onClose }) {
           </select>
         </Field>
       </div>
+      {e.load === 'stretch' && (
+        <>
+          <Field label="Stretch type">
+            <select value={e.stretchType || 'static'} onChange={(ev) => set('stretchType', ev.target.value)}>
+              <option value="static">Static (hold — cooldown)</option>
+              <option value="dynamic">Dynamic (moving — warm-up)</option>
+            </select>
+          </Field>
+          <Field label="Preps / cools these patterns" hint="Used to match warm-up and cooldown suggestions.">
+            <div className="chip-row wrap">
+              {PATTERNS.filter((p) => p.id !== 'stretch').map((p) => (
+                <button key={p.id} className={'chip chip-toggle' + ((e.targets || []).includes(p.id) ? ' on' : '')}
+                  onClick={() => set('targets', (e.targets || []).includes(p.id) ? e.targets.filter((x) => x !== p.id) : [...(e.targets || []), p.id])}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </>
+      )}
       <Field label="Caution for these injuries">
         <div className="chip-row wrap">
           {INJURY_TAGS.map((t) => (
@@ -699,7 +781,7 @@ function ExerciseForm({ onSave, onClose }) {
       </Field>
       <Field label="Coaching cue"><input value={e.cue} onChange={(ev) => set('cue', ev.target.value)} /></Field>
       <div className="modal-actions">
-        <button className="btn-primary" disabled={!e.name.trim()} onClick={() => onSave(e)}>Save exercise</button>
+        <button className="btn-primary" disabled={!e.name.trim()} onClick={() => onSave(e.load === 'stretch' ? { ...e, pattern: 'stretch', level: 1, stretchType: e.stretchType || 'static', targets: e.targets || [] } : e)}>Save exercise</button>
       </div>
     </Modal>
   );
@@ -724,7 +806,7 @@ function LibraryView({ exercises, refresh }) {
                 <span className="lib-level">{'▲'.repeat(0)}{e.level}</span>
                 <span className="lib-name">{e.name}{e.custom ? ' •' : ''}</span>
                 <span className="lib-meta muted small">
-                  {e.load === 'bodyweight' ? 'bodyweight' : e.load === 'time' ? 'timed' : 'weighted'}
+                  {e.load === 'stretch' ? (e.stretchType === 'dynamic' ? 'dynamic stretch' : 'static stretch') : e.load === 'bodyweight' ? 'bodyweight' : e.load === 'time' ? 'timed' : 'weighted'}
                   {e.contra && e.contra.length ? ' · ⚠️ ' + e.contra.map(injuryLabel).join(', ') : ''}
                 </span>
                 {e.custom && <ConfirmBtn label="✕" armedLabel="Delete?" className="btn-ghost btn-sm" onConfirm={async () => { await DB.del('exercises', e.id); refresh(); }} />}
@@ -837,8 +919,13 @@ function App() {
     (async () => {
       DB.requestPersistence();
       let ex = await DB.getAll('exercises');
-      if (!ex.length) {
-        for (const e of SEED_EXERCISES) await DB.put('exercises', e);
+      // Top up any missing seed exercises (not just first run) so existing
+      // installs receive newly added library entries, and a restore from an
+      // older backup self-heals.
+      const have = new Set(ex.map((e) => e.id));
+      const missing = SEED_EXERCISES.filter((e) => !have.has(e.id));
+      if (missing.length) {
+        for (const e of missing) await DB.put('exercises', e);
         ex = await DB.getAll('exercises');
       }
       const settings = await DB.get('settings', 'units');

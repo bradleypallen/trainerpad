@@ -74,6 +74,15 @@ fs.mkdirSync(shots, { recursive: true });
   console.log('6. Picker row for Barbell back squat:', flaggedText.trim());
   await page.locator('.picker-row', { hasText: 'Barbell back squat' }).first().click();
   await page.waitForSelector('.set-row input');
+
+  // Low-readiness toggle adjusts suggestions (needs an unflagged exercise —
+  // cautions deliberately ignore readiness)
+  await page.click('text=+ Add exercise');
+  await page.locator('.picker-row', { hasText: 'Hip thrust (barbell)' }).first().click();
+  await page.click('.modal .chip-toggle >> text=Low energy');
+  await page.waitForSelector('.rec-line:has-text("Low-readiness day")');
+  console.log('6b. Low-readiness toggle adjusts the suggestion.');
+
   await page.screenshot({ path: shots + '/5-session-editor.png', fullPage: true });
   await page.click('text=Save session');
   await page.waitForSelector('.list-row');
@@ -85,14 +94,38 @@ fs.mkdirSync(shots, { recursive: true });
   const cautionCount = await page.locator('.rec-card.warn, .rec-line.warn').count();
   console.log('8. Plan tab rendered. Caution-flagged cards:', cautionCount);
 
+  // Warm-up/cooldown stretch suggestions on the Plan tab
+  await page.waitForSelector('.rec-card:has-text("Warm-up / Cooldown")');
+  console.log('8b. Warm-up/cooldown suggestions render on Plan.');
+
+  // InBody paste-parse fills the assessment form
+  await page.click('.tabs >> text=Assessments');
+  await page.click('text=+ InBody');
+  await page.fill('.modal textarea >> nth=0',
+    'InBody Results\nWeight 216.5 lb (118.4~143.2)\nSkeletal Muscle Mass 83.4\nBody Fat Mass 60.2\nPBF 27.8 %\nBMI 29.4\nVisceral Fat Level 12\nBMR 2070 kcal\nWeight Control -10.0');
+  await page.click('text=Fill fields from pasted text');
+  await page.waitForSelector('text=Filled 7 fields');
+  const wVal = await page.inputValue('.modal input[type=number] >> nth=0');
+  if (wVal !== '216.5') throw new Error('Weight not filled from paste: ' + wVal);
+  await page.click('.modal-actions >> text=Save');
+  console.log('8c. InBody paste-fill parsed 7 fields.');
+  await page.click('.tabs >> text=Plan');
+
   // Add a brand-new client through the form
   await page.click('text=‹ All clients');
   await page.click('text=+ New client');
   await page.fill('.modal input >> nth=0', 'Test Person');
+  await page.selectOption('.modal select >> nth=2', 'hypertrophy'); // OPT phase (selects: sex 0, goal 1, phase 2)
   await page.click('.chip-toggle >> text=Shoulder');
   await page.click('text=Save client');
   await page.waitForSelector('.client-row >> text=Test Person');
   console.log('9. New client added via form.');
+
+  // Phase shows on the client header and feeds recommendations
+  await page.click('text=Test Person');
+  await page.waitForSelector('text=Hypertrophy phase');
+  console.log('9b. OPT phase saved and displayed.');
+  await page.click('.btn-ghost.back');
 
   // RELOAD — the persistence test
   await page.reload();

@@ -27,10 +27,18 @@ export const PATTERNS = [
   { id: 'core', label: 'Core' },
   { id: 'carry', label: 'Carry' },
   { id: 'conditioning', label: 'Conditioning' },
+  { id: 'stretch', label: 'Stretches' },
 ];
 
 const E = (id, name, pattern, level, load, region, contra, cue) => ({
   id, name, pattern, level, load, region, contra, cue, seed: true,
+});
+
+// Stretches: load 'stretch', never join a progression chain (all level 1,
+// own pattern). `targets` = the movement patterns this stretch preps (dynamic,
+// warm-up) or cools down (static).
+const S = (id, name, stretchType, targets, region, contra, cue) => ({
+  id, name, pattern: 'stretch', level: 1, load: 'stretch', stretchType, targets, region, contra, cue, seed: true,
 });
 
 export const SEED_EXERCISES = [
@@ -110,6 +118,24 @@ export const SEED_EXERCISES = [
   E('cn3', 'Rower intervals', 'conditioning', 3, 'time', 'lower', ['lower_back'], ''),
   E('cn4', 'Sled push', 'conditioning', 3, 'external', 'lower', [], 'Knee-friendly power work'),
   E('cn5', 'Battle ropes', 'conditioning', 2, 'time', 'upper', ['shoulder'], ''),
+
+  // ---- Stretches (no progression chain; `targets` = patterns they prep/cool) ----
+  S('st_d1', 'Leg swings', 'dynamic', ['hinge', 'lunge', 'squat'], 'lower', ['hip'], 'Hold support, swing loose'),
+  S('st_d2', 'Walking lunge with twist', 'dynamic', ['lunge', 'squat', 'core'], 'lower', ['knee'], 'Rotate over the front leg'),
+  S('st_d3', 'Arm circles', 'dynamic', ['push_h', 'push_v', 'pull_h', 'pull_v'], 'upper', [], 'Small to large, both directions'),
+  S('st_d4', 'Cat-cow', 'dynamic', ['core', 'hinge'], 'core', [], 'Segment the spine slowly'),
+  S('st_d5', "World's greatest stretch", 'dynamic', ['lunge', 'hinge', 'push_h'], 'lower', ['knee'], 'Long lunge, reach to the ceiling'),
+  S('st_d6', 'Inchworm', 'dynamic', ['hinge', 'push_h', 'core'], 'core', ['wrist', 'shoulder', 'lower_back'], 'Walk hands out, heels down'),
+  S('st_d7', '90/90 hip switches', 'dynamic', ['squat', 'hinge', 'lunge'], 'lower', ['hip', 'knee'], 'Knees sweep side to side'),
+  S('st_d8', 'Shoulder pass-throughs (band)', 'dynamic', ['push_v', 'pull_v', 'push_h'], 'upper', ['shoulder'], 'Wide grip, straight arms'),
+  S('st_s1', 'Standing quad stretch', 'static', ['squat', 'lunge'], 'lower', ['knee'], 'Knees together, tuck the pelvis'),
+  S('st_s2', 'Hamstring stretch (strap)', 'static', ['hinge'], 'lower', ['lower_back'], 'Hinge from the hips, soft knee'),
+  S('st_s3', 'Figure-4 piriformis stretch', 'static', ['squat', 'hinge', 'lunge'], 'lower', ['hip'], 'Ankle over knee, sit back'),
+  S('st_s4', 'Kneeling hip-flexor stretch', 'static', ['lunge', 'hinge'], 'lower', ['knee'], 'Squeeze the glute, ribs down'),
+  S('st_s5', 'Doorway chest stretch', 'static', ['push_h', 'push_v'], 'upper', ['shoulder'], 'Elbow at 90°, step through'),
+  S('st_s6', "Child's pose lat stretch", 'static', ['pull_v', 'pull_h'], 'upper', ['knee', 'shoulder'], 'Hips back, reach long'),
+  S('st_s7', 'Calf stretch (wall)', 'static', ['lunge', 'conditioning'], 'lower', ['ankle'], 'Back heel down, leg straight'),
+  S('st_s8', 'Upper-trap neck stretch', 'static', ['carry', 'pull_v'], 'upper', ['neck'], 'Ear to shoulder, gentle pull'),
 ];
 
 // InBody fields the assessment form captures (manual entry from the printout).
@@ -139,4 +165,14 @@ export const GOALS = [
   { id: 'hypertrophy', label: 'Muscle gain', reps: [8, 12] },
   { id: 'endurance', label: 'Endurance / toning', reps: [12, 20] },
   { id: 'weightloss', label: 'Weight loss', reps: [10, 15] },
+];
+
+// NASM OPT model phases — an optional per-client "micro goal" that refines
+// the rep range within the primary goal. When set, it wins over GOALS.reps.
+export const PHASES = [
+  { id: 'stabilization', label: 'Stabilization Endurance', reps: [12, 20], note: 'OPT 1 — slow tempo, control, build a base' },
+  { id: 'strength_endurance', label: 'Strength Endurance', reps: [8, 12], note: 'OPT 2 — supersets, moderate loads' },
+  { id: 'hypertrophy', label: 'Hypertrophy', reps: [6, 12], note: 'OPT 3 — volume for muscle growth' },
+  { id: 'max_strength', label: 'Maximum Strength', reps: [2, 5], note: 'OPT 4 — heavy loads, full rest' },
+  { id: 'power', label: 'Power', reps: [3, 6], note: 'OPT 5 — light, fast, explosive reps' },
 ];

@@ -1,12 +1,15 @@
 // Recommendation engine — transparent, rule-based strength-coaching heuristics.
 // Every recommendation carries a `why` string so the trainer can sanity-check it.
 
-import { GOALS } from './seed.js';
+import { GOALS, PHASES, PATTERNS } from './seed.js';
 
 export const epley1RM = (weight, reps) =>
   reps > 0 ? Math.round(weight * (1 + reps / 30) * 10) / 10 : 0;
 
 export function repRangeFor(client) {
+  // An OPT phase (micro goal), when set, refines the goal's rep range.
+  const p = client && client.phase ? PHASES.find((x) => x.id === client.phase) : null;
+  if (p) return p.reps;
   const g = GOALS.find((g) => g.id === (client?.goal || 'general'));
   return g ? g.reps : [8, 12];
 }
@@ -22,7 +25,7 @@ export function historyFor(sessions, exerciseId) {
   for (const s of [...sessions].sort((a, b) => b.date.localeCompare(a.date))) {
     for (const en of s.entries || []) {
       if (en.exerciseId === exerciseId && (en.sets || []).length) {
-        out.push({ date: s.date, sets: en.sets });
+        out.push({ date: s.date, sets: en.sets, readiness: s.readiness || 'normal' });
       }
     }
   }
@@ -62,6 +65,7 @@ export function safeAlternatives(exercise, client, allExercises) {
 }
 
 function chainNeighbor(exercise, allExercises, dir, client) {
+  if (exercise.load === 'stretch') return undefined; // stretches don't progress
   const chain = allExercises
     .filter((e) => e.pattern === exercise.pattern && (!client || injuryConflicts(e, client).length === 0))
     .sort((a, b) => a.level - b.level);
@@ -85,10 +89,33 @@ const minReps = (sets) => Math.min(...sets.map((s) => Number(s.reps) || 0));
 
 // ---- The core: what should this client do next time on this exercise? ----
 // Returns { kind, sets, reps, weight?, seconds?, why, switchTo?, conflicts }
-export function recommend(exercise, client, sessions, allExercises, units) {
+// `readiness`: 'normal' | 'low' — 'low' (poor sleep / low energy today) eases
+// the prescription via applyLowReadiness below.
+export function recommend(exercise, client, sessions, allExercises, units, readiness = 'normal') {
+  const rec = recommendCore(exercise, client, sessions, allExercises, units);
+  return readiness === 'low' ? applyLowReadiness(rec, units) : rec;
+}
+
+// Uniform low-readiness easing: one fewer set, ~10% less load, never advance
+// the chain today. Cautions and stretches pass through untouched.
+function applyLowReadiness(rec, units) {
+  if (!rec || rec.kind === 'caution' || rec.kind === 'stretch') return rec;
+  const out = { ...rec };
+  if (out.kind === 'progress-exercise') { out.kind = 'hold'; out.switchTo = null; }
+  if (out.sets) out.sets = Math.max(2, out.sets - 1);
+  if (out.weight) out.weight = roundToIncrement(out.weight * 0.9, units, rec.exercise.region);
+  out.why = 'Low-readiness day: about 10% lighter and one fewer set — treat today as maintenance. ' + rec.why;
+  return out;
+}
+
+function recommendCore(exercise, client, sessions, allExercises, units) {
   const conflicts = injuryConflicts(exercise, client);
-  const hist = historyFor(sessions, exercise.id);
+  // Low-readiness sessions were deliberately light — they never count as
+  // "last time" and can't read as regression.
+  const hist = historyFor(sessions, exercise.id).filter((h) => h.readiness !== 'low');
   const [lo, hi] = repRangeFor(client);
+  const phase = client && client.phase ? PHASES.find((p) => p.id === client.phase) : null;
+  const phaseWhy = phase ? ` Rep range ${lo}–${hi} from the ${phase.label} phase.` : '';
   const base = { conflicts, exercise };
 
   if (conflicts.length) {
@@ -102,13 +129,21 @@ export function recommend(exercise, client, sessions, allExercises, units) {
     };
   }
 
+  // Stretches: fixed easy prescription, no history/progression.
+  if (exercise.load === 'stretch') {
+    const t = (exercise.targets || []).map((id) => (PATTERNS.find((p) => p.id === id) || { label: id }).label).join(', ');
+    return exercise.stretchType === 'dynamic'
+      ? { ...base, kind: 'stretch', sets: 2, reps: 10, why: `Dynamic stretch — 2×10 controlled reps as a warm-up${t ? ' for ' + t.toLowerCase() : ''}.` }
+      : { ...base, kind: 'stretch', sets: 2, seconds: 30, why: `Static stretch — 2×30s easy holds after training${t ? ' ' + t.toLowerCase() : ''}.` };
+  }
+
   // No history → conservative starting prescription.
   if (!hist.length) {
     if (exercise.load === 'time')
       return { ...base, kind: 'start', sets: 3, seconds: 30, why: 'First time — start with 3 holds/rounds of ~30s and adjust to form.' };
     if (exercise.load === 'bodyweight')
-      return { ...base, kind: 'start', sets: 3, reps: lo, why: `First time — 3×${lo}, add reps as form allows.` };
-    return { ...base, kind: 'start', sets: 3, reps: lo, weight: null, why: `First time — find a weight for 3×${lo} at RPE ≤ 7 (2–3 reps left in the tank).` };
+      return { ...base, kind: 'start', sets: 3, reps: lo, why: `First time — 3×${lo}, add reps as form allows.${phaseWhy}` };
+    return { ...base, kind: 'start', sets: 3, reps: lo, weight: null, why: `First time — find a weight for 3×${lo} at RPE ≤ 7 (2–3 reps left in the tank).${phaseWhy}` };
   }
 
   const last = hist[0];
@@ -154,13 +189,79 @@ export function recommend(exercise, client, sessions, allExercises, units) {
     return {
       ...base, kind: 'progress', sets: nSets, reps: lo,
       weight: nw > w ? nw : roundToIncrement(w + (units === 'kg' ? 1.25 : 2.5), units, exercise.region),
-      why: `Hit ${nSets}×${hi} at ${w}${units}${rpe ? ` (RPE ${rpe.toFixed(1)})` : ''} — add load, reset to ${lo} reps.`,
+      why: `Hit ${nSets}×${hi} at ${w}${units}${rpe ? ` (RPE ${rpe.toFixed(1)})` : ''} — add load, reset to ${lo} reps.${phaseWhy}`,
     };
   }
   return {
     ...base, kind: 'hold', sets: nSets, reps: Math.min(minReps(last.sets) + 1, hi), weight: w,
-    why: `Last: ${fmtSets(last.sets)} @ ${w}${units}. Keep the weight, push toward ${nSets}×${hi}.`,
+    why: `Last: ${fmtSets(last.sets)} @ ${w}${units}. Keep the weight, push toward ${nSets}×${hi}.${phaseWhy}`,
   };
+}
+
+// ---- Warm-up / cooldown stretch suggestions ----
+// Given the movement patterns being trained, pick dynamic stretches (before)
+// and static stretches (after) whose `targets` overlap, skipping any the
+// client's injury flags rule out.
+export function stretchSuggestions(patternIds, exercises, client) {
+  const wanted = new Set((patternIds || []).filter((p) => p && p !== 'stretch'));
+  if (!wanted.size) return { dynamic: [], static: [], why: '' };
+  const pick = (type) => exercises
+    .filter((e) => e.load === 'stretch' && e.stretchType === type &&
+      (e.targets || []).some((t) => wanted.has(t)) &&
+      injuryConflicts(e, client).length === 0)
+    .map((e) => ({ e, n: (e.targets || []).filter((t) => wanted.has(t)).length }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 4)
+    .map((x) => x.e);
+  const labels = [...wanted].map((id) => (PATTERNS.find((p) => p.id === id) || { label: id }).label).join(', ');
+  return {
+    dynamic: pick('dynamic'),
+    static: pick('static'),
+    why: `Matched to the patterns being trained (${labels}) — dynamic before, static after. Injury-flagged stretches excluded.`,
+  };
+}
+
+// ---- InBody sheet text parser (for iPadOS Live Text paste) ----
+// Order matters twice: (1) fields are tried top-to-bottom per line, so
+// specific multi-word labels win before short/generic ones — bare 'weight'
+// is LAST because it appears inside 'Weight Control' / 'Ideal Weight' lines;
+// (2) within a field, longer aliases come first. Matching is case-insensitive
+// with word boundaries. NO regex lookbehind (Safari 15).
+const INBODY_ALIASES = [
+  { id: 'smm', aliases: ['skeletal muscle mass', 'smm'] },
+  { id: 'bfm', aliases: ['body fat mass', 'bfm'] },
+  { id: 'pbf', aliases: ['percent body fat', 'body fat percentage', 'pbf'] },
+  { id: 'bmi', aliases: ['body mass index', 'bmi'] },
+  { id: 'vfl', aliases: ['visceral fat level', 'visceral fat'] },
+  { id: 'bmr', aliases: ['basal metabolic rate', 'bmr'] },
+  { id: 'weight', aliases: ['weight'] },
+];
+const WEIGHT_BLOCKLIST = ['weight control', 'ideal weight', 'target weight', 'weight range'];
+
+export function parseInBodyText(text) {
+  const out = {};
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const lower = line.toLowerCase();
+    for (const f of INBODY_ALIASES) {
+      if (out[f.id] != null) continue; // first match wins per field
+      if (f.id === 'weight' && WEIGHT_BLOCKLIST.some((b) => lower.includes(b))) continue;
+      let hit = null;
+      for (const a of f.aliases) {
+        const m = lower.match(new RegExp('\\b' + a + '\\b')); // aliases are [a-z ] only — no escaping needed
+        if (m) { hit = m.index + a.length; break; }
+      }
+      if (hit === null) continue;
+      const after = line.slice(hit);
+      const num = after.match(/-?\d+(\.\d+)?/);
+      if (!num) continue;
+      if (after.slice(0, num.index).includes('~')) continue; // a '~' before the number means it's a range bound, not the value
+      const v = Number(num[0]);
+      if (!isNaN(v)) { out[f.id] = v; break; } // one field per line
+    }
+  }
+  return out;
 }
 
 export function fmtSets(sets) {

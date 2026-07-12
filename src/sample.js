@@ -10,7 +10,7 @@ export async function loadSampleData() {
   };
 
   const maria = {
-    id: uid(), name: 'Maria Santos', goal: 'strength', sex: 'F',
+    id: uid(), name: 'Maria Santos', goal: 'strength', phase: 'max_strength', sex: 'F',
     dob: '1988-04-12', email: 'maria@example.com', phone: '555-0142',
     injuries: [], injuryNotes: '', notes: 'Training for a powerlifting meet in fall. Prefers morning sessions.',
     createdAt: iso(70),
@@ -53,12 +53,13 @@ export async function loadSampleData() {
     { d: 35, ht: [65, 12], row: [30, 12], pl: 30 },
     { d: 28, ht: [75, 10], row: [35, 10], pl: 35 },
     { d: 21, ht: [75, 12], row: [35, 12], pl: 45 },
-    { d: 14, ht: [85, 10], row: [40, 10], pl: 50 },
+    { d: 14, ht: [85, 10], row: [40, 10], pl: 50, readiness: 'low' }, // slept badly that week — shows the readiness feature
     { d: 7, ht: [85, 12], row: [40, 12], pl: 60 },
   ];
   for (const w of jamesWeeks) {
     await put('sessions', {
       id: uid(), clientId: james.id, date: iso(w.d),
+      readiness: w.readiness || 'normal',
       notes: '', entries: [
         { exerciseId: 'hg7', sets: [0, 1, 2].map(() => ({ weight: w.ht[0], reps: w.ht[1], rpe: 7 })) },
         { exerciseId: 'rh2', sets: [0, 1, 2].map(() => ({ weight: w.row[0], reps: w.row[1], rpe: 7.5 })) },
