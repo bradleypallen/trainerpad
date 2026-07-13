@@ -6,6 +6,7 @@ import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFo
 import LineChart from './chart.jsx';
 import { loadSampleData } from './sample.js';
 import { mdToHtml } from './md.js';
+import { buildHomeworkCard, buildSessionCard, renderCard, cardBlob, shareCard, CAN_SHARE_FILES } from './card.js';
 import GUIDE_MD from '../GUIDE.md';
 
 const GUIDE_HTML = mdToHtml(GUIDE_MD); // computed once at module load
@@ -36,6 +37,35 @@ function Modal({ title, onClose, children, wide }) {
         <div className="modal-body">{children}</div>
       </div>
     </div>
+  );
+}
+
+// Preview + share/save a rendered workout card. The blob is computed at
+// mount so the Share tap calls navigator.share directly inside the user
+// gesture (Safari requires transient activation — no async work in between).
+function CardPreview({ model, filename, onClose }) {
+  const [src, setSrc] = useState(null);
+  const [blob, setBlob] = useState(null);
+  const [status, setStatus] = useState('');
+  useEffect(() => {
+    const c = renderCard(model);
+    setSrc(c.toDataURL('image/png'));
+    cardBlob(c).then(setBlob).catch(() => setStatus('Could not render the card.'));
+  }, []);
+  const doShare = async () => {
+    const r = await shareCard(blob, filename);
+    if (r === 'shared') setStatus('Shared.');
+    else if (r === 'downloaded') setStatus('Image saved — send it from Files or Photos.');
+  };
+  return (
+    <Modal title="Share card" onClose={onClose}>
+      {src ? <img className="card-preview" src={src} alt="Workout card preview" /> : <div className="loading">Rendering…</div>}
+      {status && <p className="ok-note">{status}</p>}
+      <div className="modal-actions">
+        <button className="btn-ghost" onClick={onClose}>Close</button>
+        <button className="btn-primary" disabled={!blob} onClick={doShare}>{CAN_SHARE_FILES ? 'Share…' : 'Save image'}</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -216,9 +246,10 @@ function ExercisePicker({ exercises, client, sessions, units, readiness, onPick,
 }
 
 // ---------- Session editor ----------
-function SessionEditor({ session, client, exercises, sessions, units, onSave, onClose, onDelete }) {
+function SessionEditor({ session, client, exercises, sessions, units, trainerName, onSave, onClose, onDelete }) {
   const [s, setS] = useState(session || { id: DB.uid(), clientId: client.id, date: todayISO(), readiness: 'normal', notes: '', entries: [] });
   const [picking, setPicking] = useState(false);
+  const [sharingCard, setSharingCard] = useState(false);
   const exById = useMemo(() => Object.fromEntries(exercises.map((e) => [e.id, e])), [exercises]);
   const set = (k, v) => setS((p) => ({ ...p, [k]: v }));
   const priorSessions = useMemo(() => sessions.filter((x) => x.id !== s.id), [sessions, s.id]);
@@ -330,11 +361,16 @@ function SessionEditor({ session, client, exercises, sessions, units, onSave, on
       <Field label="Session notes"><textarea rows={2} value={s.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Energy, form notes, anything to remember…" /></Field>
       <div className="modal-actions">
         {session && onDelete && <ConfirmBtn label="Delete session" onConfirm={() => onDelete(s)} />}
+        <button className="btn-secondary" disabled={!s.entries.length} onClick={() => setSharingCard(true)}>Share</button>
         <button className="btn-primary" disabled={!s.entries.length} onClick={() => onSave(s)}>Save session</button>
       </div>
       {picking && (
         <ExercisePicker exercises={exercises} client={client} sessions={priorSessions} units={units} readiness={s.readiness} onPick={addExercise} onClose={() => setPicking(false)} />
       )}
+      {sharingCard && <CardPreview
+        model={buildSessionCard({ session: s, client, exercises, units, trainerName })}
+        filename={`${client.name.split(' ')[0].toLowerCase()}-session-${s.date}.png`}
+        onClose={() => setSharingCard(false)} />}
     </Modal>
   );
 }
@@ -435,7 +471,8 @@ function OHSForm({ initial, client, onSave, onClose, onDelete }) {
 }
 
 // ---------- Client detail tabs ----------
-function PlanTab({ client, sessions, assessments, exercises, units, onStartSession }) {
+function PlanTab({ client, sessions, assessments, exercises, units, trainerName, onStartSession }) {
+  const [sharing, setSharing] = useState(false);
   const recent = useMemo(() => {
     const seen = [];
     for (const s of [...sessions].sort((a, b) => b.date.localeCompare(a.date))) {
@@ -450,7 +487,10 @@ function PlanTab({ client, sessions, assessments, exercises, units, onStartSessi
     <div>
       <div className="row-between">
         <p className="muted">Next-session suggestions from {client.name.split(' ')[0]}’s history, goal ({goalLabel(client.goal)}{client.phase ? ', ' + phaseLabel(client.phase) + ' phase' : ''}) and injury flags.</p>
-        <button className="btn-primary" onClick={onStartSession}>Start session</button>
+        <div className="btn-row">
+          <button className="btn-secondary" disabled={!items.length} onClick={() => setSharing(true)}>Share card</button>
+          <button className="btn-primary" onClick={onStartSession}>Start session</button>
+        </div>
       </div>
       {!items.length && <div className="empty-note">No sessions logged yet. Start a session and the plan will build itself from what you log.</div>}
       {items.length > 0 && (() => {
@@ -473,6 +513,10 @@ function PlanTab({ client, sessions, assessments, exercises, units, onStartSessi
           </div>
         ) : null;
       })()}
+      {sharing && <CardPreview
+        model={buildHomeworkCard({ client, sessions, assessments: assessments || [], exercises, units, trainerName })}
+        filename={`${client.name.split(' ')[0].toLowerCase()}-plan-${todayISO()}.png`}
+        onClose={() => setSharing(false)} />}
       {items.map((ex) => {
         const rec = recommend(ex, client, sessions, exercises, units);
         const prog = progressionOf(ex, exercises, client);
@@ -500,7 +544,7 @@ function PlanTab({ client, sessions, assessments, exercises, units, onStartSessi
   );
 }
 
-function SessionsTab({ client, sessions, exercises, units, refresh }) {
+function SessionsTab({ client, sessions, exercises, units, trainerName, refresh }) {
   const [editing, setEditing] = useState(null); // session object or 'new'
   const exById = Object.fromEntries(exercises.map((e) => [e.id, e]));
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
@@ -521,7 +565,7 @@ function SessionsTab({ client, sessions, exercises, units, refresh }) {
       {editing && (
         <SessionEditor
           session={editing === 'new' ? null : editing}
-          client={client} exercises={exercises} sessions={sessions} units={units}
+          client={client} exercises={exercises} sessions={sessions} units={units} trainerName={trainerName}
           onSave={save} onClose={() => setEditing(null)} onDelete={remove}
         />
       )}
@@ -679,7 +723,7 @@ function CorrectiveTab({ client, assessments, exercises, onGoAssess }) {
   );
 }
 
-function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient, refreshClients }) {
+function ClientDetail({ client, exercises, units, trainerName, onBack, onEdit, onDeleteClient, refreshClients }) {
   const [tab, setTab] = useState('plan');
   const [sessions, setSessions] = useState([]);
   const [assessments, setAssessments] = useState([]);
@@ -732,13 +776,13 @@ function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient
           <button key={id} className={'tab' + (tab === id ? ' on' : '')} onClick={() => setTab(id)}>{lbl}</button>
         ))}
       </div>
-      {tab === 'plan' && <PlanTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} onStartSession={() => { setTab('sessions'); setLogging(true); }} />}
-      {tab === 'sessions' && <SessionsTab client={client} sessions={sessions} exercises={exercises} units={units} refresh={refresh} />}
+      {tab === 'plan' && <PlanTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} trainerName={trainerName} onStartSession={() => { setTab('sessions'); setLogging(true); }} />}
+      {tab === 'sessions' && <SessionsTab client={client} sessions={sessions} exercises={exercises} units={units} trainerName={trainerName} refresh={refresh} />}
       {tab === 'progress' && <ProgressTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} />}
       {tab === 'assess' && <AssessTab client={client} assessments={assessments} units={units} refresh={refresh} />}
       {tab === 'corrective' && <CorrectiveTab client={client} assessments={assessments} exercises={exercises} onGoAssess={() => setTab('assess')} />}
       {logging && (
-        <SessionEditor client={client} exercises={exercises} sessions={sessions} units={units}
+        <SessionEditor client={client} exercises={exercises} sessions={sessions} units={units} trainerName={trainerName}
           onSave={async (s) => { await DB.put('sessions', s); setLogging(false); refresh(); }}
           onClose={() => setLogging(false)} />
       )}
@@ -747,7 +791,7 @@ function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient
 }
 
 // ---------- Clients list ----------
-function ClientsView({ clients, exercises, units, refresh }) {
+function ClientsView({ clients, exercises, units, trainerName, refresh }) {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -765,7 +809,7 @@ function ClientsView({ clients, exercises, units, refresh }) {
   if (open) {
     return (
       <>
-        <ClientDetail client={open} exercises={exercises} units={units}
+        <ClientDetail client={open} exercises={exercises} units={units} trainerName={trainerName}
           onBack={() => setOpenId(null)} onEdit={() => setEditing(open)}
           onDeleteClient={() => removeClient(open)} refreshClients={refresh} />
         {editing && <ClientForm initial={editing} onSave={save} onClose={() => setEditing(null)} />}
@@ -905,7 +949,7 @@ function LibraryView({ exercises, refresh }) {
 }
 
 // ---------- Settings ----------
-function SettingsView({ units, setUnits, refresh, counts }) {
+function SettingsView({ units, setUnits, trainerName, setTrainerName, refresh, counts }) {
   const fileRef = useRef(null);
   const [msg, setMsg] = useState('');
   const [persisted, setPersisted] = useState(null);
@@ -945,6 +989,12 @@ function SettingsView({ units, setUnits, refresh, counts }) {
             <button key={u} className={'chip chip-toggle' + (units === u ? ' on' : '')} onClick={() => setUnits(u)}>{u === 'lb' ? 'Pounds (lb)' : 'Kilograms (kg)'}</button>
           ))}
         </div>
+      </div>
+      <div className="card">
+        <h3>Card branding</h3>
+        <Field label="Trainer name" hint="Shown on shared workout cards.">
+          <input value={trainerName} onChange={(e) => setTrainerName(e.target.value)} placeholder="e.g. Coach Latricia" />
+        </Field>
       </div>
       <div className="card">
         <h3>Backup</h3>
@@ -995,6 +1045,7 @@ function App() {
   const [clients, setClients] = useState([]);
   const [exercises, setExercises] = useState([]);
   const [units, setUnitsState] = useState('lb');
+  const [trainerName, setTrainerNameState] = useState('');
   const [counts, setCounts] = useState({ clients: 0, sessions: 0, assessments: 0 });
   const [rev, setRev] = useState(0);
   const refresh = () => setRev((r) => r + 1);
@@ -1014,6 +1065,8 @@ function App() {
       }
       const settings = await DB.get('settings', 'units');
       setUnitsState((settings && settings.value) || 'lb');
+      const tn = await DB.get('settings', 'trainerName');
+      setTrainerNameState((tn && tn.value) || '');
       setExercises(ex);
       const cl = await DB.getAll('clients');
       setClients(cl);
@@ -1025,6 +1078,7 @@ function App() {
   }, [rev]);
 
   const setUnits = async (u) => { await DB.put('settings', { key: 'units', value: u }); setUnitsState(u); };
+  const setTrainerName = async (v) => { await DB.put('settings', { key: 'trainerName', value: v }); setTrainerNameState(v); };
 
   if (!ready) return <div className="loading">Loading…</div>;
 
@@ -1040,10 +1094,10 @@ function App() {
         </nav>
       </header>
       <main className="content">
-        {view === 'clients' && <ClientsView clients={clients} exercises={exercises} units={units} refresh={refresh} />}
+        {view === 'clients' && <ClientsView clients={clients} exercises={exercises} units={units} trainerName={trainerName} refresh={refresh} />}
         {view === 'library' && <LibraryView exercises={exercises} refresh={refresh} />}
         {view === 'help' && <HelpView />}
-        {view === 'settings' && <SettingsView units={units} setUnits={setUnits} refresh={refresh} counts={counts} />}
+        {view === 'settings' && <SettingsView units={units} setUnits={setUnits} trainerName={trainerName} setTrainerName={setTrainerName} refresh={refresh} counts={counts} />}
       </main>
     </div>
   );

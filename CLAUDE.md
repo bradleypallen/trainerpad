@@ -47,6 +47,10 @@ reload `docs/index.html` in a browser. `test.js` is one sequential e2e script
   `why`; keep that property when extending rules.
 - `src/seed.js` — exercise library / injury tags / goals. Trainer-editable
   behavior belongs here as data; numeric thresholds live in logic.js.
+- `src/card.js` — shareable PNG card generator: pure model builders +
+  measure-then-draw canvas renderer + Web Share/download helpers.
+  Dependency-free; always renders the light palette (hardcoded hexes) so
+  cards look identical whatever the device theme.
 - `src/chart.jsx` — chart spec: 2px line, 10% area wash, hairline solid
   gridlines, crosshair tooltip, endpoint label, table-view twin. Single
   series per chart, one y-axis, no legends. Keep it that way.

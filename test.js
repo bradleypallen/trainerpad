@@ -53,6 +53,10 @@ console.log('0. Seed id integrity —', refIds.length, 'corrective references re
   await page.waitForSelector('text=Sample clients added', { timeout: 5000 });
   console.log('2. Sample data loaded.');
 
+  // Trainer name (card branding) — still on Settings
+  await page.fill('.card:has-text("Card branding") input', 'Coach Dana');
+  console.log('2b. Trainer name set for card branding.');
+
   // Clients list
   await page.click('.topnav >> text=Clients');
   await page.waitForSelector('text=Maria Santos');
@@ -141,6 +145,19 @@ console.log('0. Seed id integrity —', refIds.length, 'corrective references re
   await page.waitForSelector('.rec-card:has-text("Corrective focus")');
   console.log('8f. Plan tab shows the corrective-focus line.');
 
+  // Workout card: preview renders, PNG saves (file:// has no Web Share →
+  // the button is deterministically "Save image")
+  await page.click('text=Share card');
+  await page.waitForSelector('img.card-preview[src^="data:image/png"]');
+  await page.screenshot({ path: shots + '/10-card-preview.png' });
+  const [cardDl] = await Promise.all([
+    page.waitForEvent('download'),
+    page.click('.modal-actions >> text=Save image'),
+  ]);
+  if (!cardDl.suggestedFilename().endsWith('.png')) throw new Error('Card download not a .png: ' + cardDl.suggestedFilename());
+  console.log('8g. Homework card renders and saves as PNG:', cardDl.suggestedFilename());
+  await page.click('.modal-actions >> text=Close');
+
   // Add a brand-new client through the form
   await page.click('text=‹ All clients');
   await page.click('text=+ New client');
@@ -181,6 +198,11 @@ console.log('0. Seed id integrity —', refIds.length, 'corrective references re
   await download.saveAs(bkPath);
   const bk = JSON.parse(fs.readFileSync(bkPath, 'utf8'));
   console.log('12. Backup export OK — clients in backup:', bk.data.clients.length, '| sessions:', bk.data.sessions.length);
+
+  // Trainer-name setting survived the reload too
+  const tn = await page.inputValue('.card:has-text("Card branding") input');
+  if (tn !== 'Coach Dana') throw new Error('Trainer name did not persist: ' + tn);
+  console.log('12b. Trainer name persisted across reload.');
 
   // Exercise library view
   await page.click('.topnav >> text=Exercises');

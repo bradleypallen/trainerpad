@@ -9,6 +9,7 @@ A local-first client-management app for personal trainers, designed for iPad. Th
 ```
 src/
   app.jsx       UI — all views and components (React)
+  card.js       Shareable PNG workout/session cards (canvas render, Web Share + save fallback)
   chart.jsx     Single-series SVG line chart (crosshair tooltip, dark-mode aware)
   db.js         IndexedDB wrapper + JSON export/import + storage persistence
   logic.js      The recommendation rule engine (pure functions)
