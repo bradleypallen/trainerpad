@@ -1,7 +1,7 @@
 // Recommendation engine — transparent, rule-based strength-coaching heuristics.
 // Every recommendation carries a `why` string so the trainer can sanity-check it.
 
-import { GOALS, PHASES, PATTERNS } from './seed.js';
+import { GOALS, PHASES, PATTERNS, OHS_COMPENSATIONS } from './seed.js';
 
 export const epley1RM = (weight, reps) =>
   reps > 0 ? Math.round(weight * (1 + reps / 30) * 10) / 10 : 0;
@@ -65,7 +65,7 @@ export function safeAlternatives(exercise, client, allExercises) {
 }
 
 function chainNeighbor(exercise, allExercises, dir, client) {
-  if (exercise.load === 'stretch') return undefined; // stretches don't progress
+  if (exercise.load === 'stretch' || exercise.pattern === 'corrective') return undefined; // stretches & correctives don't progress
   const chain = allExercises
     .filter((e) => e.pattern === exercise.pattern && (!client || injuryConflicts(e, client).length === 0))
     .sort((a, b) => a.level - b.level);
@@ -279,6 +279,44 @@ export function fmtRec(rec, units) {
   if (rec.seconds) parts.push(`× ${rec.seconds}s`);
   if (rec.weight) parts.push(`@ ${rec.weight} ${units}`);
   return parts.join(' ');
+}
+
+// ---- Overhead squat assessment → corrective work ----
+export function latestOHS(assessments) {
+  return assessments.filter((a) => a.type === 'ohs')
+    .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+}
+
+// Turn the latest overhead-squat screen into corrective recommendations.
+// Every rec keeps a plain-English `why`. Injury-flagged exercises are
+// excluded but *named*, so the trainer knows the plan was trimmed and why.
+export function correctiveRecs(assessments, exercises, client) {
+  const assessment = latestOHS(assessments);
+  if (!assessment) return { assessment: null, recs: [] };
+  const exById = Object.fromEntries(exercises.map((e) => [e.id, e]));
+  const resolve = (ids) => {
+    const kept = [], excluded = [];
+    for (const id of ids || []) {
+      const ex = exById[id];
+      if (!ex) continue;
+      (injuryConflicts(ex, client).length ? excluded : kept).push(ex);
+    }
+    return { kept, excluded };
+  };
+  const recs = [];
+  for (const comp of OHS_COMPENSATIONS) {
+    if (!assessment.data || !assessment.data[comp.id]) continue;
+    const flex = resolve(comp.flexIds);
+    const str = resolve(comp.strengthIds);
+    recs.push({
+      comp,
+      flexibility: flex.kept,
+      strengthen: str.kept,
+      excluded: [...flex.excluded, ...str.excluded],
+      why: `${comp.label} usually points to overactive ${comp.overactive.join(', ')} and underactive ${comp.underactive.join(', ')} — foam-roll/stretch what's probably tight, then activate what's probably weak.`,
+    });
+  }
+  return { assessment, recs };
 }
 
 // Body-comp series for charts, from InBody assessments.

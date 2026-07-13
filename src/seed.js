@@ -27,6 +27,7 @@ export const PATTERNS = [
   { id: 'core', label: 'Core' },
   { id: 'carry', label: 'Carry' },
   { id: 'conditioning', label: 'Conditioning' },
+  { id: 'corrective', label: 'Corrective' },
   { id: 'stretch', label: 'Stretches' },
 ];
 
@@ -119,6 +120,19 @@ export const SEED_EXERCISES = [
   E('cn4', 'Sled push', 'conditioning', 3, 'external', 'lower', [], 'Knee-friendly power work'),
   E('cn5', 'Battle ropes', 'conditioning', 2, 'time', 'upper', ['shoulder'], ''),
 
+  // ---- Corrective (NASM OHS follow-up; no progression chain) ----
+  E('cx1', 'Single-leg balance reach', 'corrective', 1, 'bodyweight', 'lower', ['ankle'], 'Soft knee, reach the free foot forward, hips level'),
+  E('cx2', 'Lateral tube walking', 'corrective', 1, 'bodyweight', 'lower', ['hip'], 'Band above knees, quarter squat, side-step — knees pressed out'),
+  E('cx3', 'Ball wall squat', 'corrective', 1, 'bodyweight', 'lower', ['knee'], 'Stability ball between low back and wall, slow tempo'),
+  E('cx4', 'Ball wall squat (band abduction)', 'corrective', 1, 'bodyweight', 'lower', ['knee'], 'Mini-band above knees — press out as you squat'),
+  E('cx5', 'Ball wall squat (ball adduction)', 'corrective', 1, 'bodyweight', 'lower', ['knee'], 'Small ball between knees — squeeze gently as you squat'),
+  E('cx6', 'Ball bridge', 'corrective', 1, 'bodyweight', 'lower', [], 'Shoulders on ball, squeeze glutes to a flat table-top'),
+  E('cx7', 'Floor cobra', 'corrective', 1, 'bodyweight', 'upper', ['lower_back'], 'Prone, lift chest, squeeze blades down and back, thumbs up'),
+  E('cx8', 'Ball back extension', 'corrective', 1, 'bodyweight', 'core', ['lower_back'], 'Hips on ball, extend to neutral — no hyperextension'),
+  E('cx9', 'Squat to row (band)', 'corrective', 1, 'bodyweight', 'upper', [], 'Squat, row as you stand — blades back, shoulders down'),
+  E('cx10', 'Single-leg calf raise', 'corrective', 1, 'bodyweight', 'lower', ['ankle'], 'Press up through the big-toe side of the foot'),
+  E('cx11', 'Single-leg squat (to box)', 'corrective', 1, 'bodyweight', 'lower', ['knee'], 'Tap the box, knee tracks over the toes'),
+
   // ---- Stretches (no progression chain; `targets` = patterns they prep/cool) ----
   S('st_d1', 'Leg swings', 'dynamic', ['hinge', 'lunge', 'squat'], 'lower', ['hip'], 'Hold support, swing loose'),
   S('st_d2', 'Walking lunge with twist', 'dynamic', ['lunge', 'squat', 'core'], 'lower', ['knee'], 'Rotate over the front leg'),
@@ -136,6 +150,14 @@ export const SEED_EXERCISES = [
   S('st_s6', "Child's pose lat stretch", 'static', ['pull_v', 'pull_h'], 'upper', ['knee', 'shoulder'], 'Hips back, reach long'),
   S('st_s7', 'Calf stretch (wall)', 'static', ['lunge', 'conditioning'], 'lower', ['ankle'], 'Back heel down, leg straight'),
   S('st_s8', 'Upper-trap neck stretch', 'static', ['carry', 'pull_v'], 'upper', ['neck'], 'Ear to shoulder, gentle pull'),
+  S('st_s9', 'Standing TFL stretch', 'static', ['lunge', 'squat'], 'lower', ['hip'], 'Back leg crossed behind, push that hip out sideways'),
+  S('st_s10', 'Adductor stretch (butterfly)', 'static', ['squat', 'lunge'], 'lower', ['hip'], 'Soles together, knees toward the floor, tall spine'),
+  S('st_s11', 'Erector spinae stretch (knees to chest)', 'static', ['hinge'], 'core', ['lower_back'], 'Hug both knees, let the low back round'),
+  S('st_s12', 'Abdominal stretch (over ball)', 'static', ['core'], 'core', ['lower_back'], 'Drape backward over the ball, arms overhead'),
+  S('st_s13', 'Soleus stretch (bent knee)', 'static', ['conditioning'], 'lower', ['ankle'], 'Wall calf stretch with the back knee bent'),
+  S('st_s14', 'Peroneal foam roll', 'static', ['conditioning'], 'lower', [], 'Roll the outside of the lower leg, slow passes'),
+  S('st_s15', 'Neck stretch (SCM / levator scap)', 'static', ['carry'], 'upper', ['neck'], 'Look down toward the opposite armpit, gentle overpressure'),
+  S('st_s16', 'Thoracic spine foam roll', 'static', ['push_h', 'pull_h'], 'upper', [], 'Roll the mid-back, hands support the head'),
 ];
 
 // InBody fields the assessment form captures (manual entry from the printout).
@@ -157,6 +179,65 @@ export const FITNESS_TESTS = [
   { id: 'sitreach', label: 'Sit-and-reach', unit: 'in' },
   { id: 'rhr', label: 'Resting heart rate', unit: 'bpm' },
   { id: 'mile', label: '1-mile walk/run', unit: 'min' },
+];
+
+// NASM overhead-squat assessment: observable compensations, the muscles that
+// are *probably* over/underactive, and corrective work drawn from the
+// exercise library (so it's loggable and injury-filterable). Encoded in our
+// own words/structure from NASM-CES methodology. Muscles are display strings;
+// flexIds/strengthIds must be SEED_EXERCISES ids (test.js checks this).
+export const OHS_COMPENSATIONS = [
+  { id: 'feet_out', view: 'anterior', checkpoint: 'Foot', label: 'Feet turn out',
+    overactive: ['soleus', 'lateral gastrocnemius', 'biceps femoris (short head)', 'TFL'],
+    underactive: ['medial gastrocnemius', 'medial hamstring', 'gluteus medius/maximus', 'gracilis', 'popliteus'],
+    flexIds: ['st_s7', 'st_s2', 'st_s9'], strengthIds: ['cx1'] },
+  { id: 'knees_in', view: 'anterior', checkpoint: 'Knee', label: 'Knees move inward',
+    overactive: ['adductor complex', 'biceps femoris (short head)', 'TFL', 'vastus lateralis', 'lateral gastrocnemius'],
+    underactive: ['gluteus medius/maximus', 'VMO', 'medial hamstring', 'medial gastrocnemius'],
+    flexIds: ['st_s10', 'st_s2', 'st_s9', 'st_s7'], strengthIds: ['cx2', 'cx4', 'cx6'],
+    cue: 'On the ball bridge, add the mini-band above the knees and press out.' },
+  { id: 'knees_out', view: 'anterior', checkpoint: 'Knee', label: 'Knees move outward',
+    overactive: ['piriformis', 'biceps femoris', 'TFL', 'gluteus minimus/medius'],
+    underactive: ['adductor complex', 'medial hamstring', 'gluteus maximus'],
+    flexIds: ['st_s3', 'st_s2', 'st_s9'], strengthIds: ['cx5', 'cx6'],
+    cue: 'On the ball bridge, squeeze a small ball between the knees.' },
+  { id: 'forward_lean', view: 'lateral', checkpoint: 'LPHC', label: 'Excessive forward lean',
+    overactive: ['soleus', 'gastrocnemius', 'hip flexor complex', 'abdominal complex'],
+    underactive: ['anterior tibialis', 'gluteus maximus', 'erector spinae'],
+    flexIds: ['st_s7', 'st_s4', 'st_s12'], strengthIds: ['cx3'] },
+  { id: 'back_arches', view: 'lateral', checkpoint: 'LPHC', label: 'Low back arches',
+    overactive: ['hip flexor complex', 'erector spinae', 'latissimus dorsi'],
+    underactive: ['gluteus maximus', 'hamstrings', 'intrinsic core stabilizers'],
+    flexIds: ['st_s4', 'st_s6', 'st_s11'], strengthIds: ['cx3', 'hg1', 'cx6'] },
+  { id: 'back_rounds', view: 'lateral', checkpoint: 'LPHC', label: 'Low back rounds',
+    overactive: ['hamstrings', 'adductor magnus', 'rectus abdominis', 'external obliques'],
+    underactive: ['gluteus maximus', 'erector spinae', 'intrinsic core stabilizers'],
+    flexIds: ['st_s2', 'st_s10', 'st_s12'], strengthIds: ['cx7', 'cx8'] },
+  { id: 'arms_fall', view: 'lateral', checkpoint: 'Upper body', label: 'Arms fall forward',
+    overactive: ['latissimus dorsi', 'pectorals', 'teres major', 'coracobrachialis'],
+    underactive: ['mid/lower trapezius', 'rhomboids', 'rotator cuff', 'posterior deltoid'],
+    flexIds: ['st_s6', 'st_s5', 'st_s16'], strengthIds: ['cx7', 'cx8', 'cx9'] },
+  { id: 'forward_head', view: 'lateral', checkpoint: 'Upper body', label: 'Forward head',
+    overactive: ['levator scapulae', 'sternocleidomastoid', 'scalenes'],
+    underactive: ['deep cervical flexors'],
+    flexIds: ['st_s15'], strengthIds: [],
+    cue: 'Cue a gentle chin tuck during every exercise — that IS the strengthening work here.' },
+  { id: 'shoulders_elevate', view: 'lateral', checkpoint: 'Upper body', label: 'Shoulders elevate',
+    overactive: ['upper trapezius', 'sternocleidomastoid', 'levator scapulae'],
+    underactive: ['mid/lower trapezius', 'rhomboids', 'rotator cuff'],
+    flexIds: ['st_s8', 'st_s15'], strengthIds: ['cx7', 'cx8'] },
+  { id: 'feet_flatten', view: 'posterior', checkpoint: 'Foot', label: 'Feet flatten',
+    overactive: ['peroneals', 'lateral gastrocnemius', 'biceps femoris (short head)', 'TFL'],
+    underactive: ['anterior/posterior tibialis', 'medial gastrocnemius', 'gluteus medius'],
+    flexIds: ['st_s14', 'st_s7', 'st_s2', 'st_s9'], strengthIds: ['cx1', 'cx10'] },
+  { id: 'heels_rise', view: 'posterior', checkpoint: 'Foot', label: 'Heels rise',
+    overactive: ['soleus'], underactive: ['anterior tibialis'],
+    flexIds: ['st_s13'], strengthIds: ['cx1', 'cx11'] },
+  { id: 'weight_shift', view: 'posterior', checkpoint: 'LPHC', label: 'Asymmetrical weight shift',
+    overactive: ['adductor complex (shift side)', 'TFL / piriformis / biceps femoris / glute med (opposite side)'],
+    underactive: ['gluteus medius (shift side)', 'adductor complex (opposite side)'],
+    flexIds: ['st_s10', 'st_s9', 'st_s3', 'st_s2'], strengthIds: ['cx2', 'cx1', 'cx5'],
+    cue: 'Note which side the hips shift toward in Notes — stretch/strengthen the listed side.' },
 ];
 
 export const GOALS = [

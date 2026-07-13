@@ -24,7 +24,9 @@ Open **Settings → Load sample data** to explore with two demo clients (you can
 
 **Progress** — charts for weight, muscle mass, and body-fat % from InBody entries, plus an estimated-1RM strength trend per exercise.
 
-**Assessments** — enter InBody results (weight, SMM, body fat %, BMI, visceral fat, BMR) from the printout, attach a photo of the sheet, and log fitness tests (push-ups, plank, resting HR, …). Skip the typing: photograph the printout, copy the text with iPadOS **Live Text**, paste it into the form's paste box, and tap **Fill fields** to extract the values.
+**Assessments** — enter InBody results (weight, SMM, body fat %, BMI, visceral fat, BMR) from the printout, attach a photo of the sheet, and log fitness tests (push-ups, plank, resting HR, …). Skip the typing: photograph the printout, copy the text with iPadOS **Live Text**, paste it into the form's paste box, and tap **Fill fields** to extract the values. You can also record an **overhead squat assessment** — a quick movement screen: the client squats with arms overhead while you watch from the front, side and behind, tapping the compensations you see (knees caving in, heels rising, arms falling forward, …).
+
+**Corrective** — each client's fifth tab turns their latest overhead squat screen into a corrective plan: for every compensation, which muscles are probably overactive (stretch or foam-roll them) and which are probably underactive (strengthen them), with the reasoning in plain English. Exercises that clash with the client's injury flags are skipped and noted. The Plan tab shows a one-line corrective reminder too.
 
 **Exercises** — the built-in library is organized into progression/regression chains by movement pattern. Add your own exercises, with their own injury cautions, and they join the chains.
 

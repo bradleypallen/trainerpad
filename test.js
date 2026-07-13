@@ -15,6 +15,17 @@ const FILE = 'file://' + path.resolve(__dirname, 'docs/index.html');
 const shots = path.resolve(__dirname, 'shots');
 fs.mkdirSync(shots, { recursive: true });
 
+// Seed integrity: every OHS_COMPENSATIONS flexIds/strengthIds id must exist
+// as an exercise id (static scan — seed.js is ESM, test.js is CJS).
+const seedSrc = fs.readFileSync(path.resolve(__dirname, 'src/seed.js'), 'utf8');
+const exIds = new Set([...seedSrc.matchAll(/^\s*[ES]\('([^']+)'/gm)].map((m) => m[1]));
+const refIds = [...seedSrc.matchAll(/(?:flexIds|strengthIds):\s*\[([^\]]*)\]/g)]
+  .flatMap((m) => [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]));
+const missingIds = refIds.filter((id) => !exIds.has(id));
+if (missingIds.length) throw new Error('OHS_COMPENSATIONS references unknown exercise ids: ' + missingIds.join(', '));
+if (!refIds.length) throw new Error('No flexIds/strengthIds found in seed.js — integrity check is broken');
+console.log('0. Seed id integrity —', refIds.length, 'corrective references resolve.');
+
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({
@@ -109,7 +120,26 @@ fs.mkdirSync(shots, { recursive: true });
   if (wVal !== '216.5') throw new Error('Weight not filled from paste: ' + wVal);
   await page.click('.modal-actions >> text=Save');
   console.log('8c. InBody paste-fill parsed 7 fields.');
+
+  // OHS assessment → Corrective tab
+  await page.click('text=+ Overhead squat');
+  await page.click('.modal .chip-toggle >> text=Knees move inward');
+  await page.click('.modal .chip-toggle >> text=Excessive forward lean');
+  await page.screenshot({ path: shots + '/8-ohs-form.png' });
+  await page.click('.modal-actions >> text=Save');
+  await page.waitForSelector('.chip:has-text("Overhead squat")');
+  console.log('8d. OHS assessment saved.');
+
+  await page.click('.tabs >> text=Corrective');
+  await page.waitForSelector('.rec-card:has-text("Knees move inward")');
+  await page.waitForSelector('.rec-card:has-text("Lateral tube walking")');
+  await page.waitForSelector('.rec-card:has-text("Excessive forward lean")');
+  await page.screenshot({ path: shots + '/9-corrective.png', fullPage: true });
+  console.log('8e. Corrective tab shows stretch + strengthen recs with whys.');
+
   await page.click('.tabs >> text=Plan');
+  await page.waitForSelector('.rec-card:has-text("Corrective focus")');
+  console.log('8f. Plan tab shows the corrective-focus line.');
 
   // Add a brand-new client through the form
   await page.click('text=‹ All clients');

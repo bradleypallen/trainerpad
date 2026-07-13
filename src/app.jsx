@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as DB from './db.js';
-import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS, PHASES } from './seed.js';
-import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor, stretchSuggestions, parseInBodyText } from './logic.js';
+import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS, PHASES, OHS_COMPENSATIONS } from './seed.js';
+import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor, stretchSuggestions, parseInBodyText, correctiveRecs } from './logic.js';
 import LineChart from './chart.jsx';
 import { loadSampleData } from './sample.js';
 import { mdToHtml } from './md.js';
@@ -400,8 +400,42 @@ function FitnessForm({ initial, client, onSave, onClose, onDelete }) {
   );
 }
 
+function OHSForm({ initial, client, onSave, onClose, onDelete }) {
+  const [a, setA] = useState(initial || { id: DB.uid(), clientId: client.id, date: todayISO(), type: 'ohs', data: {}, notes: '', photo: null });
+  const toggle = (id) => setA((p) => {
+    const data = { ...p.data };
+    if (data[id]) delete data[id]; else data[id] = true; // store only true keys — clean summaries
+    return { ...p, data };
+  });
+  const views = [['anterior', 'Anterior view (from the front)'], ['lateral', 'Lateral view (from the side)'], ['posterior', 'Posterior view (from behind)']];
+  return (
+    <Modal title="Overhead squat assessment" onClose={onClose}>
+      <Field label="Date"><input type="date" value={a.date} onChange={(e) => setA({ ...a, date: e.target.value })} /></Field>
+      <p className="muted small">Client squats ~5 reps, arms overhead. Watch from each angle and tap every compensation you see.</p>
+      {views.map(([v, lbl]) => (
+        <Field key={v} label={lbl}>
+          <div className="chip-row wrap">
+            {OHS_COMPENSATIONS.filter((c) => c.view === v).map((c) => (
+              <button key={c.id} className={'chip chip-toggle' + (a.data[c.id] ? ' on' : '')} onClick={() => toggle(c.id)}>
+                {c.checkpoint}: {c.label}
+              </button>
+            ))}
+          </div>
+          {v === 'posterior' && a.data.weight_shift && <span className="field-hint">Asymmetrical shift: note which side in Notes below.</span>}
+        </Field>
+      ))}
+      <Field label="Notes"><textarea rows={2} value={a.notes} onChange={(e) => setA({ ...a, notes: e.target.value })} placeholder="Which side, which rep it appeared on, shoes on/off…" /></Field>
+      <Field label="Photo"><PhotoInput value={a.photo} onChange={(v) => setA({ ...a, photo: v })} label="photo" /></Field>
+      <div className="modal-actions">
+        {initial && onDelete && <ConfirmBtn label="Delete" onConfirm={() => onDelete(a)} />}
+        <button className="btn-primary" onClick={() => onSave(a)}>Save</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ---------- Client detail tabs ----------
-function PlanTab({ client, sessions, exercises, units, onStartSession }) {
+function PlanTab({ client, sessions, assessments, exercises, units, onStartSession }) {
   const recent = useMemo(() => {
     const seen = [];
     for (const s of [...sessions].sort((a, b) => b.date.localeCompare(a.date))) {
@@ -427,6 +461,15 @@ function PlanTab({ client, sessions, exercises, units, onStartSession }) {
             {sg.dynamic.length > 0 && <div className="rec-why">Warm-up (dynamic): {sg.dynamic.map((e) => e.name).join(' · ')}</div>}
             {sg.static.length > 0 && <div className="rec-why">Cooldown (static): {sg.static.map((e) => e.name).join(' · ')}</div>}
             <div className="rec-links muted small">{sg.why}</div>
+          </div>
+        ) : null;
+      })()}
+      {(() => {
+        const { assessment, recs } = correctiveRecs(assessments || [], exercises, client);
+        return assessment && recs.length ? (
+          <div className="rec-card">
+            <div className="rec-top"><strong>Corrective focus</strong></div>
+            <div className="rec-why">{recs.map((r) => r.comp.label).join(' · ')} — from the {fmtDateLong(assessment.date)} overhead squat screen. Details on the Corrective tab.</div>
           </div>
         ) : null;
       })()}
@@ -562,7 +605,7 @@ function AssessTab({ client, assessments, units, refresh }) {
   const sorted = [...assessments].sort((a, b) => b.date.localeCompare(a.date));
   const save = async (a) => { await DB.put('assessments', a); setForm(null); refresh(); };
   const remove = async (a) => { await DB.del('assessments', a.id); setForm(null); refresh(); };
-  const label = (a) => a.type === 'inbody' ? 'InBody' : 'Fitness tests';
+  const label = (a) => a.type === 'inbody' ? 'InBody' : a.type === 'ohs' ? 'Overhead squat' : 'Fitness tests';
   const summary = (a) => {
     if (a.type === 'inbody') {
       const parts = [];
@@ -571,27 +614,67 @@ function AssessTab({ client, assessments, units, refresh }) {
       if (a.data.smm != null && a.data.smm !== '') parts.push(`SMM ${a.data.smm}`);
       return parts.join(' · ');
     }
+    if (a.type === 'ohs') {
+      const ids = Object.keys(a.data || {}).filter((k) => a.data[k]);
+      if (!ids.length) return 'No compensations observed';
+      return `${ids.length} compensation${ids.length === 1 ? '' : 's'}: ` +
+        ids.map((k) => (OHS_COMPENSATIONS.find((c) => c.id === k) || { label: k }).label).join(', ');
+    }
     return Object.entries(a.data).filter(([, v]) => v !== '' && v != null)
       .map(([k, v]) => `${(FITNESS_TESTS.find((t) => t.id === k) || { label: k }).label.split(' (')[0]}: ${v}`).join(' · ');
   };
   return (
     <div>
       <div className="row-between">
-        <p className="muted">InBody scans and fitness tests</p>
+        <p className="muted">InBody scans, fitness tests &amp; movement screens</p>
         <div className="btn-row">
+          <button className="btn-secondary" onClick={() => setForm({ type: 'ohs' })}>+ Overhead squat</button>
           <button className="btn-secondary" onClick={() => setForm({ type: 'fitness' })}>+ Fitness test</button>
           <button className="btn-primary" onClick={() => setForm({ type: 'inbody' })}>+ InBody</button>
         </div>
       </div>
       {sorted.map((a) => (
         <button key={a.id} className="list-row" onClick={() => setForm({ type: a.type, record: a })}>
-          <span className="list-main">{fmtDateLong(a.date)} <span className={'chip ' + (a.type === 'inbody' ? 'chip-blue' : 'chip-gray')}>{label(a)}</span></span>
+          <span className="list-main">{fmtDateLong(a.date)} <span className={'chip ' + (a.type === 'inbody' ? 'chip-blue' : a.type === 'ohs' ? 'chip-amber' : 'chip-gray')}>{label(a)}</span></span>
           <span className="list-sub">{summary(a)}{a.photo ? ' · 📷' : ''}</span>
         </button>
       ))}
       {!sorted.length && <div className="empty-note">No assessments yet. Add her client’s first InBody scan or baseline fitness tests.</div>}
       {form && form.type === 'inbody' && <InBodyForm initial={form.record} client={client} units={units} onSave={save} onClose={() => setForm(null)} onDelete={remove} />}
       {form && form.type === 'fitness' && <FitnessForm initial={form.record} client={client} onSave={save} onClose={() => setForm(null)} onDelete={remove} />}
+      {form && form.type === 'ohs' && <OHSForm initial={form.record} client={client} onSave={save} onClose={() => setForm(null)} onDelete={remove} />}
+    </div>
+  );
+}
+
+// ---------- Corrective tab (from the overhead squat screen) ----------
+function CorrectiveTab({ client, assessments, exercises, onGoAssess }) {
+  const { assessment, recs } = correctiveRecs(assessments, exercises, client);
+  if (!assessment) return (
+    <div className="empty-note">
+      No overhead squat assessment yet. Record one and corrective work — what to stretch, what to strengthen, and why — appears here.
+      <div style={{ marginTop: 12 }}><button className="btn-secondary" onClick={onGoAssess}>Go to Assessments</button></div>
+    </div>
+  );
+  const cap = (s) => s[0].toUpperCase() + s.slice(1);
+  return (
+    <div>
+      <p className="muted">From the overhead squat screen on {fmtDateLong(assessment.date)}. NASM-style strategy: inhibit &amp; lengthen the probable-overactive muscles, then activate the probable-underactive ones. Re-screen every 4–6 weeks.</p>
+      {assessment.notes && <div className="note-strip">📝 {assessment.notes}</div>}
+      {!recs.length && <div className="empty-note">No compensations were observed on the latest screen — nothing to correct. 🎉</div>}
+      {recs.map((r) => (
+        <div key={r.comp.id} className="rec-card">
+          <div className="rec-top">
+            <strong>{r.comp.label}</strong>
+            <span className="chip chip-amber">{cap(r.comp.view)} · {r.comp.checkpoint}</span>
+          </div>
+          <div className="rec-why">{r.why}</div>
+          {r.flexibility.length > 0 && <div className="rec-switch">Stretch / SMR: <strong>{r.flexibility.map((e) => e.name).join(' · ')}</strong></div>}
+          {r.strengthen.length > 0 && <div className="rec-switch">Strengthen: <strong>{r.strengthen.map((e) => e.name).join(' · ')}</strong></div>}
+          {r.comp.cue && <div className="rec-links muted small">Coaching cue: {r.comp.cue}</div>}
+          {r.excluded.length > 0 && <div className="rec-links muted small">Skipped for this client's injury flags: {r.excluded.map((e) => e.name).join(', ')}</div>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -614,7 +697,7 @@ function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient
   const delta = (f) => latest && prev && latest.data[f] != null && prev.data[f] != null && latest.data[f] !== '' && prev.data[f] !== ''
     ? Math.round((latest.data[f] - prev.data[f]) * 10) / 10 : null;
 
-  const tabs = [['plan', 'Plan'], ['sessions', 'Sessions'], ['progress', 'Progress'], ['assess', 'Assessments']];
+  const tabs = [['plan', 'Plan'], ['sessions', 'Sessions'], ['progress', 'Progress'], ['assess', 'Assessments'], ['corrective', 'Corrective']];
   return (
     <div>
       <button className="btn-ghost back" onClick={onBack}>‹ All clients</button>
@@ -649,10 +732,11 @@ function ClientDetail({ client, exercises, units, onBack, onEdit, onDeleteClient
           <button key={id} className={'tab' + (tab === id ? ' on' : '')} onClick={() => setTab(id)}>{lbl}</button>
         ))}
       </div>
-      {tab === 'plan' && <PlanTab client={client} sessions={sessions} exercises={exercises} units={units} onStartSession={() => { setTab('sessions'); setLogging(true); }} />}
+      {tab === 'plan' && <PlanTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} onStartSession={() => { setTab('sessions'); setLogging(true); }} />}
       {tab === 'sessions' && <SessionsTab client={client} sessions={sessions} exercises={exercises} units={units} refresh={refresh} />}
       {tab === 'progress' && <ProgressTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} />}
       {tab === 'assess' && <AssessTab client={client} assessments={assessments} units={units} refresh={refresh} />}
+      {tab === 'corrective' && <CorrectiveTab client={client} assessments={assessments} exercises={exercises} onGoAssess={() => setTab('assess')} />}
       {logging && (
         <SessionEditor client={client} exercises={exercises} sessions={sessions} units={units}
           onSave={async (s) => { await DB.put('sessions', s); setLogging(false); refresh(); }}

@@ -96,5 +96,12 @@ export async function loadSampleData() {
     data: { pushups: 19, plank: 60, rhr: 71 }, notes: 'Nice improvement across the board.',
   });
 
+  // Overhead squat screen — feeds the Corrective tab in the demo.
+  await put('assessments', {
+    id: uid(), clientId: james.id, date: iso(10), type: 'ohs',
+    data: { knees_in: true, forward_lean: true },
+    notes: 'Knees cave on reps 3–5, forward lean throughout. Shoes off. Retest in 4 weeks.',
+  });
+
   return { clients: 2 };
 }
