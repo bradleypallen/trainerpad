@@ -259,3 +259,12 @@ export const PHASES = [
   { id: 'max_strength', label: 'Maximum Strength', reps: [1, 5], sets: '4–6', tempo: 'x-x-x', rest: '3–5 min', note: 'OPT 4 — heavy loads, full rest (85–100%)' },
   { id: 'power', label: 'Power', reps: [8, 10], sets: '3–5', tempo: 'x-x-x explosive', rest: '1–2 min between pairs', note: 'OPT 5 — superset: heavy strength (1–5 @ 85–100%) + light explosive (8–10 @ 30–45% / 10% BW)' },
 ];
+
+// Activity multipliers for the Nutrition tab's daily-burn estimate.
+// Factors are the standard Harris-Benedict style activity levels.
+export const ACTIVITY_LEVELS = [
+  { id: 'sedentary', label: 'Sedentary', factor: 1.2, desc: 'Desk day, little exercise outside sessions' },
+  { id: 'light', label: 'Lightly active', factor: 1.375, desc: '1–3 sessions/wk' },
+  { id: 'moderate', label: 'Moderately active', factor: 1.55, desc: '3–5 sessions/wk' },
+  { id: 'very', label: 'Very active', factor: 1.725, desc: '6–7 sessions/wk' },
+];

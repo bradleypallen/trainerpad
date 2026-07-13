@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as DB from './db.js';
-import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS, PHASES, OHS_COMPENSATIONS } from './seed.js';
-import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor, stretchSuggestions, parseInBodyText, correctiveRecs } from './logic.js';
+import { SEED_EXERCISES, INJURY_TAGS, PATTERNS, INBODY_FIELDS, FITNESS_TESTS, GOALS, PHASES, OHS_COMPENSATIONS, ACTIVITY_LEVELS } from './seed.js';
+import { recommend, fmtRec, e1rmSeries, inbodySeries, injuryConflicts, historyFor, fmtSets, progressionOf, regressionOf, repRangeFor, stretchSuggestions, parseInBodyText, correctiveRecs, nutritionRecs, exampleDay } from './logic.js';
 import LineChart from './chart.jsx';
 import { loadSampleData } from './sample.js';
 import { mdToHtml } from './md.js';
@@ -723,6 +723,55 @@ function CorrectiveTab({ client, assessments, exercises, onGoAssess }) {
   );
 }
 
+// ---------- Nutrition tab (rule-based targets from the latest InBody) ----------
+function NutritionTab({ client, assessments, units, refreshClients, onGoAssess }) {
+  const setActivity = async (id) => { await DB.put('clients', { ...client, activity: id }); refreshClients(); };
+  const r = nutritionRecs({ client, assessments, units });
+  const act = ACTIVITY_LEVELS.find((a) => a.id === (client.activity || 'light'));
+  return (
+    <div>
+      <Field label="Activity outside sessions" hint={act ? act.desc : ''}>
+        <div className="chip-row wrap">
+          {ACTIVITY_LEVELS.map((a) => (
+            <button key={a.id} className={'chip chip-toggle' + ((client.activity || 'light') === a.id ? ' on' : '')} onClick={() => setActivity(a.id)}>{a.label}</button>
+          ))}
+        </div>
+      </Field>
+      {!r.ok ? (
+        <div className="empty-note">
+          {r.missing}
+          <div style={{ marginTop: 12 }}><button className="btn-secondary" onClick={onGoAssess}>Go to Assessments</button></div>
+        </div>
+      ) : (
+        <>
+          <p className="muted">Based on the {fmtDateLong(r.date)} InBody scan · BMR {r.bmrSource}.</p>
+          <div className="stat-row nutri-row">
+            <StatTile label="Calories/day" value={r.calories} unit=" kcal" />
+            <StatTile label="Protein" value={r.protein} unit=" g" />
+            <StatTile label="Fat" value={r.fat} unit=" g" />
+            <StatTile label="Carbs" value={r.carbs} unit=" g" />
+          </div>
+          <div className="rec-card">
+            <div className="rec-top"><strong>Why these numbers</strong></div>
+            <div className="rec-why">{r.whys.bmr}</div>
+            <div className="rec-why">{r.whys.tdee}</div>
+            <div className="rec-why">{r.whys.calories}</div>
+            <div className="rec-why">{r.whys.macros}</div>
+          </div>
+          <div className="rec-card">
+            <div className="rec-top"><strong>One example day</strong></div>
+            {exampleDay(r.calories, r.protein).map((m) => (
+              <div key={m.label} className="rec-why">{m.label}: ~{m.kcal} kcal, ~{m.protein} g protein — {m.note}</div>
+            ))}
+            <div className="rec-links muted small"><em>An illustration of the targets as food, not a prescription — food choices are the client's.</em></div>
+          </div>
+          <p className="muted small">{r.disclaimer}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ClientDetail({ client, exercises, units, trainerName, onBack, onEdit, onDeleteClient, refreshClients }) {
   const [tab, setTab] = useState('plan');
   const [sessions, setSessions] = useState([]);
@@ -741,7 +790,7 @@ function ClientDetail({ client, exercises, units, trainerName, onBack, onEdit, o
   const delta = (f) => latest && prev && latest.data[f] != null && prev.data[f] != null && latest.data[f] !== '' && prev.data[f] !== ''
     ? Math.round((latest.data[f] - prev.data[f]) * 10) / 10 : null;
 
-  const tabs = [['plan', 'Plan'], ['sessions', 'Sessions'], ['progress', 'Progress'], ['assess', 'Assessments'], ['corrective', 'Corrective']];
+  const tabs = [['plan', 'Plan'], ['sessions', 'Sessions'], ['progress', 'Progress'], ['assess', 'Assessments'], ['corrective', 'Corrective'], ['nutrition', 'Nutrition']];
   return (
     <div>
       <button className="btn-ghost back" onClick={onBack}>‹ All clients</button>
@@ -781,6 +830,7 @@ function ClientDetail({ client, exercises, units, trainerName, onBack, onEdit, o
       {tab === 'progress' && <ProgressTab client={client} sessions={sessions} assessments={assessments} exercises={exercises} units={units} />}
       {tab === 'assess' && <AssessTab client={client} assessments={assessments} units={units} refresh={refresh} />}
       {tab === 'corrective' && <CorrectiveTab client={client} assessments={assessments} exercises={exercises} onGoAssess={() => setTab('assess')} />}
+      {tab === 'nutrition' && <NutritionTab client={client} assessments={assessments} units={units} refreshClients={refreshClients} onGoAssess={() => setTab('assess')} />}
       {logging && (
         <SessionEditor client={client} exercises={exercises} sessions={sessions} units={units} trainerName={trainerName}
           onSave={async (s) => { await DB.put('sessions', s); setLogging(false); refresh(); }}

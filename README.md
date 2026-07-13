@@ -2,7 +2,7 @@
 
 A local-first client-management app for personal trainers, designed for iPad. The whole app compiles to **one self-contained HTML file** — no backend, no accounts, no build served at runtime. All client data lives in IndexedDB on the device; a JSON export/import provides backup and restore.
 
-**Features:** client profiles with injury flags · session logging with per-set weight/reps/RPE · rule-based next-session recommendations (double progression, RPE-triggered deloads, progression/regression chains, injury-aware exercise swaps) · InBody and fitness-assessment tracking with photo attachments · progress charts (body composition + estimated-1RM trends) · exercise library organized into progression chains by movement pattern · lb/kg · light + dark mode.
+**Features:** client profiles with injury flags · session logging with per-set weight/reps/RPE · rule-based next-session recommendations (double progression, RPE-triggered deloads, progression/regression chains, injury-aware exercise swaps) · InBody and fitness-assessment tracking with photo attachments · progress charts (body composition + estimated-1RM trends) · exercise library organized into progression chains by movement pattern · rule-based nutrition targets (calories + macros from InBody data, with plain-English reasoning) · lb/kg · light + dark mode.
 
 ## Repo layout
 

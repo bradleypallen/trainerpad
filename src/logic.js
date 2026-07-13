@@ -1,7 +1,7 @@
 // Recommendation engine — transparent, rule-based strength-coaching heuristics.
 // Every recommendation carries a `why` string so the trainer can sanity-check it.
 
-import { GOALS, PHASES, PATTERNS, OHS_COMPENSATIONS } from './seed.js';
+import { GOALS, PHASES, PATTERNS, OHS_COMPENSATIONS, ACTIVITY_LEVELS } from './seed.js';
 
 export const epley1RM = (weight, reps) =>
   reps > 0 ? Math.round(weight * (1 + reps / 30) * 10) / 10 : 0;
@@ -317,6 +317,111 @@ export function correctiveRecs(assessments, exercises, client) {
     });
   }
   return { assessment, recs };
+}
+
+// ---- Nutrition (rule-based, from the latest InBody) ----
+export function latestInBody(assessments) {
+  return assessments.filter((a) => a.type === 'inbody')
+    .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+}
+
+const LB_PER_KG = 2.2046;
+// Numeric thresholds live in logic.js, not seed.js.
+const GOAL_CAL_ADJ = { weightloss: 0.80, hypertrophy: 1.10, strength: 1.05, general: 1.00, endurance: 1.00 };
+const GOAL_PROTEIN_GKG = { weightloss: 2.0, hypertrophy: 1.8, strength: 1.8, general: 1.6, endurance: 1.6 };
+const round50 = (x) => Math.round(x / 50) * 50;
+const round5 = (x) => Math.round(x / 5) * 5;
+
+export const NUTRITION_DISCLAIMER =
+  'General guidance for healthy adults, computed from standard formulas — not medical or dietetic advice. ' +
+  'For clients with medical conditions, a history of disordered eating, or who are pregnant or nursing, refer to a registered dietitian or physician.';
+
+export function nutritionRecs({ client, assessments, units }) {
+  const latest = latestInBody(assessments);
+  const num = (v) => (v == null || v === '' || isNaN(Number(v)) ? null : Number(v));
+  const d = (latest && latest.data) || {};
+  const weightRaw = num(d.weight);
+  const weightKg = weightRaw != null ? (units === 'lb' ? weightRaw / LB_PER_KG : weightRaw) : null;
+  const measuredBmr = num(d.bmr), pbf = num(d.pbf), bfmRaw = num(d.bfm);
+
+  if (!latest || weightKg == null || (measuredBmr == null && pbf == null && bfmRaw == null)) {
+    return { ok: false, missing: 'Add an InBody entry with weight plus BMR or body-fat % — the numbers here are computed from real measurements, not population averages.' };
+  }
+
+  // BMR: prefer the machine's measurement; else Katch-McArdle from lean mass.
+  let bmr, bmrSource, bmrWhy;
+  if (measuredBmr != null) {
+    bmr = Math.round(measuredBmr);
+    bmrSource = 'InBody measurement';
+    bmrWhy = `Resting burn ${bmr} kcal — measured by the InBody scan; what the body uses at complete rest.`;
+  } else {
+    const lbmKg = pbf != null ? weightKg * (1 - pbf / 100)
+      : weightKg - (units === 'lb' ? bfmRaw / LB_PER_KG : bfmRaw);
+    bmr = Math.round(370 + 21.6 * lbmKg);
+    bmrSource = 'estimated from lean mass (Katch-McArdle)';
+    bmrWhy = `Resting burn ~${bmr} kcal, estimated from lean mass (Katch-McArdle: 370 + 21.6 × ${Math.round(lbmKg * 10) / 10} kg lean). Lean tissue drives resting burn, so this beats weight-only formulas.`;
+  }
+
+  // Activity: stored on the client, else assume lightly active.
+  const actId = client.activity;
+  const act = ACTIVITY_LEVELS.find((a) => a.id === actId) || ACTIVITY_LEVELS.find((a) => a.id === 'light');
+  const tdee = Math.round(bmr * act.factor);
+  const tdeeWhy = `Daily burn ~${tdee} kcal = resting burn × ${act.factor} (${act.label.toLowerCase()}: ${act.desc.toLowerCase()}).`
+    + (actId ? '' : ' No activity level set — assuming lightly active; tap a chip above to refine.');
+
+  // Goal adjustment, clamped so a cut never goes below BMR.
+  const adj = GOAL_CAL_ADJ[client.goal] != null ? GOAL_CAL_ADJ[client.goal] : 1.0;
+  let rawCals = tdee * adj, clamped = false;
+  if (adj < 1 && rawCals < bmr) { rawCals = bmr; clamped = true; }
+  const calories = round50(rawCals);
+  const calWhys = {
+    weightloss: 'About 20% below daily burn — steady fat loss (~0.5–1% of body weight per week) without tanking energy or training quality.',
+    hypertrophy: 'About 10% above daily burn — enough surplus to build muscle while keeping fat gain minimal.',
+    strength: 'A small ~5% surplus to support heavy training and recovery.',
+    general: 'At maintenance — fuel training without moving body weight.',
+    endurance: 'At maintenance — fuel training without moving body weight.',
+  };
+  const caloriesWhy = `Target ${calories} kcal/day. ` + (calWhys[client.goal] || calWhys.general)
+    + (clamped ? ' Capped at the resting burn — eating below BMR is not sustainable or safe to coach.' : '');
+
+  // Macros: protein by g/kg bodyweight, fat 30% of calories, carbs fill the rest.
+  const gkg = GOAL_PROTEIN_GKG[client.goal] != null ? GOAL_PROTEIN_GKG[client.goal] : 1.6;
+  const protein = round5(weightKg * gkg);
+  const fat = round5((calories * 0.30) / 9);
+  const carbs = round5(Math.max(0, calories - protein * 4 - fat * 9) / 4);
+  const proteinWhys = {
+    weightloss: 'set high to protect muscle while in a deficit',
+    hypertrophy: 'the raw material for new muscle',
+    strength: 'supports recovery from heavy loading',
+    general: 'enough to maintain and repair muscle',
+    endurance: 'enough to maintain and repair muscle',
+  };
+  const macrosWhy = `Protein ${protein} g = ${gkg} g per kg of body weight — ${proteinWhys[client.goal] || proteinWhys.general}. `
+    + `Fat ${fat} g ≈ 30% of calories — hormones and satiety. Carbs ${carbs} g fill the remaining calories — the main training fuel.`;
+
+  return {
+    ok: true, bmr, bmrSource, tdee, calories, protein, fat, carbs,
+    activityId: act.id, date: latest.date,
+    whys: { bmr: bmrWhy, tdee: tdeeWhy, calories: caloriesWhy, macros: macrosWhy },
+    disclaimer: NUTRITION_DISCLAIMER,
+  };
+}
+
+// ONE generic example day — an illustration of what the calorie/protein
+// targets look like as food, not a meal plan. Hand-portion phrasing on purpose.
+const MEAL_SPLIT = [
+  { label: 'Breakfast', frac: 0.25, note: 'palm of protein, fist of carbs, thumb of fats' },
+  { label: 'Lunch', frac: 0.30, note: 'palm of protein, fist of carbs, fist of veg' },
+  { label: 'Snack', frac: 0.15, note: 'protein-forward — yogurt, shake, or handful of nuts' },
+  { label: 'Dinner', frac: 0.30, note: 'palm of protein, fist of carbs, fist of veg, thumb of fats' },
+];
+export function exampleDay(calories, protein) {
+  return MEAL_SPLIT.map((m) => ({
+    label: m.label,
+    kcal: Math.round((calories * m.frac) / 10) * 10,
+    protein: round5(protein * m.frac),
+    note: m.note,
+  }));
 }
 
 // Body-comp series for charts, from InBody assessments.

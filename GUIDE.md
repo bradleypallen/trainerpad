@@ -28,6 +28,8 @@ Open **Settings → Load sample data** to explore with two demo clients (you can
 
 **Corrective** — each client's fifth tab turns their latest overhead squat screen into a corrective plan: for every compensation, which muscles are probably overactive (stretch or foam-roll them) and which are probably underactive (strengthen them), with the reasoning in plain English. Exercises that clash with the client's injury flags are skipped and noted. The Plan tab shows a one-line corrective reminder too.
 
+**Nutrition** — a daily calorie target and protein/fat/carb split computed from the client's latest InBody scan, their goal, and an activity level you set with one tap. Every number comes with the reasoning in plain English (resting burn → daily burn → goal adjustment → macros), plus one generic example day using hand-portion language — an illustration, never a meal plan. This is general guidance for healthy adults, not medical or dietetic advice; refer out for medical conditions, disordered-eating history, or pregnancy.
+
 **Exercises** — the built-in library is organized into progression/regression chains by movement pattern. Add your own exercises, with their own injury cautions, and they join the chains.
 
 ## Backups — please read this bit

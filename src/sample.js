@@ -16,7 +16,7 @@ export async function loadSampleData() {
     createdAt: iso(70),
   };
   const james = {
-    id: uid(), name: 'James Okafor', goal: 'weightloss', sex: 'M',
+    id: uid(), name: 'James Okafor', goal: 'weightloss', activity: 'moderate', sex: 'M',
     dob: '1975-09-30', email: 'james@example.com', phone: '555-0177',
     injuries: ['knee'], injuryNotes: 'Left knee meniscus repair (2023). Building back knee-friendly lower-body work; progress squatting patterns cautiously.',
     notes: 'Goal: lose 25 lb before daughter’s wedding in November.',

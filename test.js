@@ -158,6 +158,27 @@ console.log('0. Seed id integrity —', refIds.length, 'corrective references re
   console.log('8g. Homework card renders and saves as PNG:', cardDl.suggestedFilename());
   await page.click('.modal-actions >> text=Close');
 
+  // Nutrition tab: rule-based targets from the latest InBody, with whys.
+  // NOTE: expected values assume James's latest InBody (bmr 2070, weight
+  // 216.5 lb) — step 8c's pasted entry is value-identical by construction;
+  // if sample.js InBody numbers change, update the paste fixture in lockstep.
+  await page.click('.tabs >> text=Nutrition');
+  await page.waitForSelector('.nutri-row .stat-tile:has-text("Calories")');
+  const calTile = await page.locator('.nutri-row .stat-tile', { hasText: 'Calories' }).textContent();
+  if (!calTile.includes('2550')) throw new Error('Expected 2550 kcal (2070×1.55×0.8 → round50), got: ' + calTile);
+  const protTile = await page.locator('.nutri-row .stat-tile', { hasText: 'Protein' }).textContent();
+  if (!protTile.includes('195')) throw new Error('Expected 195 g protein (98.2 kg × 2.0 → round5), got: ' + protTile);
+  await page.waitForSelector('text=Based on the');
+  await page.waitForSelector('text=not medical or dietetic advice');
+  await page.waitForSelector('text=One example day');
+  await page.screenshot({ path: shots + '/11-nutrition.png', fullPage: true });
+  console.log('8h. Nutrition tab: calories/macros with whys, example day, disclaimer.');
+
+  // Activity chip persists to the client and recomputes calories
+  await page.click('.chip-toggle >> text=Very active');
+  await page.waitForSelector('.nutri-row .stat-tile:has-text("2850")');
+  console.log('8i. Activity toggle recomputes calories (2070×1.725×0.8 → 2850) and saves.');
+
   // Add a brand-new client through the form
   await page.click('text=‹ All clients');
   await page.click('text=+ New client');
