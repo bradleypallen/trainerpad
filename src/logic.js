@@ -64,8 +64,9 @@ export function safeAlternatives(exercise, client, allExercises) {
     .slice(0, 3);
 }
 
+const NON_CHAIN = new Set(['corrective', 'acc_upper', 'acc_lower']); // patterns that never join a progression chain
 function chainNeighbor(exercise, allExercises, dir, client) {
-  if (exercise.load === 'stretch' || exercise.pattern === 'corrective') return undefined; // stretches & correctives don't progress
+  if (exercise.load === 'stretch' || NON_CHAIN.has(exercise.pattern)) return undefined; // stretches, correctives & accessories don't progress
   const chain = allExercises
     .filter((e) => e.pattern === exercise.pattern && (!client || injuryConflicts(e, client).length === 0))
     .sort((a, b) => a.level - b.level);

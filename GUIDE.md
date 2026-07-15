@@ -30,7 +30,7 @@ Open **Settings → Load sample data** to explore with two demo clients (you can
 
 **Nutrition** — a daily calorie target and protein/fat/carb split computed from the client's latest InBody scan, their goal, and an activity level you set with one tap. Every number comes with the reasoning in plain English (resting burn → daily burn → goal adjustment → macros), plus one generic example day using hand-portion language — an illustration, never a meal plan. This is general guidance for healthy adults, not medical or dietetic advice; refer out for medical conditions, disordered-eating history, or pregnancy.
 
-**Exercises** — the built-in library is organized into progression/regression chains by movement pattern. Add your own exercises, with their own injury cautions, and they join the chains.
+**Exercises** — the built-in library is organized into progression/regression chains by movement pattern. Add your own exercises, with their own injury cautions, and they join the chains. Two curated accessory groups — **Accessories — upper** and **Accessories — lower** — cover isolation and movement-quality work (curls, raises, face pulls, rotator-cuff and scap work, hamstring and calf isolation); accessories never join a progression chain, but weighted ones still get double-progression coaching and e1RM charts.
 
 ## Backups — please read this bit
 

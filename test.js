@@ -228,6 +228,7 @@ console.log('0. Seed id integrity —', refIds.length, 'corrective references re
   // Exercise library view
   await page.click('.topnav >> text=Exercises');
   await page.waitForSelector('text=Squat');
+  await page.waitForSelector('text=Accessories — upper');
   await page.screenshot({ path: shots + '/6-library.png', fullPage: true });
   console.log('13. Library renders.');
 
